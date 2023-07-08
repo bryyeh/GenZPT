@@ -35,8 +35,16 @@ app.use(express.json());
 
 
 app.get('/', (req, res) => {
-    res.render("index")
+    res.render("call_form")
 //   res.send('Hello World!')
+})
+
+app.post('/call', (req, res) => {
+
+    res.render("call", {
+        phoneNumber: req.body.phoneNumber, 
+        purpose: req.body.purpose
+    })
 })
 
 app.listen(3000, () => {
