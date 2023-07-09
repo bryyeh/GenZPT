@@ -14,12 +14,8 @@
   margin-bottom: 20px;
 }
 
-.phone-number {
+.call-name {
   color: #007bff;
-}
-
-.call-purpose {
-  font-style: italic;
 }
 
 .call-audio {
@@ -28,7 +24,7 @@
 </style>
 
 <div class="call-container">
-  <p class="call-message">Calling <span class="phone-number">{{phoneNumber}}</span> to: <br><span class="call-purpose">{{purpose}}</span>.</p>
+  <p class="call-message">Ordering a pizza for <span class="call-name">{{name}}</span>.</p>
   <audio controls class="call-audio">
     <source src="/path/to/audio/file.mp3" type="audio/mpeg">
     Your browser does not support the audio element.

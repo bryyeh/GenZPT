@@ -1,13 +1,29 @@
 <div class="container">
   <form action="/call" method="POST">
+    
+    <div class="form-group">
+      <label for="name">Name</label>
+      <input type="text" id="name" name="name" placeholder="John Smith" value="John Smith" class="form-control" required>
+    </div>
+    
     <div class="form-group">
       <label for="phoneNumber">Phone number</label>
       <input type="tel" id="phoneNumber" name="phoneNumber" placeholder="(555) 555 5555" value="555 555 5555" class="form-control" required>
     </div>
+
+    <div class="form-group">
+      <label for="deliveryAddress">Delivery Address</label>
+      <input type="text" id="deliveryAddress" name="deliveryAddress" placeholder="123 Main Street" value="123 Main Street" class="form-control" required>
+    </div>
     
     <div class="form-group">
-      <label for="purpose">Call purpose</label>
-      <textarea id="purpose" name="purpose" class="form-control" required rows="3"placeholder="Enter your call purpose here">Order a large pepperoni pizza</textarea>
+      <label for="pizzaSize">Pizza Size</label>
+      <input type="text" id="pizzaSize" name="pizzaSize" placeholder="Medium" value="Medium" class="form-control" required>
+    </div>
+
+    <div class="form-group">
+      <label for="toppings">Toppings</label>
+      <input type="text" id="toppings" name="toppings" placeholder="Pepperoni" value="Pepperoni" class="form-control" required>
     </div>
 
     <button type="submit" class="btn btn-primary">Submit</button>
