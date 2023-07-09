@@ -42,8 +42,7 @@ app.get('/', (req, res) => {
 app.post('/call', (req, res) => {
 
     res.render("call", {
-        phoneNumber: req.body.phoneNumber, 
-        purpose: req.body.purpose
+        name: req.body.name
     })
 })
 
