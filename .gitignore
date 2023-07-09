@@ -29,6 +29,7 @@ coverage/
 
 # dotenv environment variables file
 .env
+*.env
 
 # OS generated files
 .DS_Store

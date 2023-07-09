@@ -1,1 +1,7 @@
-Hello World
+To run this: 
+
+1. Install node
+2. Create path.env file in your room directory with:
+
+export TWILIO_ACCOUNT_SID="..."
+export TWILIO_AUTH_TOKEN="..."
