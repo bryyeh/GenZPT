@@ -41,50 +41,39 @@ if(!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
 
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID // 'your_account_sid';
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN // 'your_auth_token';
-
+const TWILIO_TO_PHONE_NUMBER = process.env.TWILIO_TO_PHONE_NUMBER // '+15005550006';
+const TWILIO_FROM_PHONE_NUMBER = process.env.TWILIO_FROM_PHONE_NUMBER // '+15005550006';
 
 
 /******************************** Routes ********************************/
 
 
 app.get('/', (req, res) => {
-    res.render("call_form")
+    res.render("call_form", {
+        defaultToPhoneNumber: TWILIO_TO_PHONE_NUMBER,
+    })
 })
 
 app.post('/call', (req, res) => {
 
     const toPhoneNumber = req.body.phoneNumber
-    const purpose = req.body.purpose
-    const fromPhoneNumber = '555 555 5555'
+    const fromPhoneNumber = TWILIO_FROM_PHONE_NUMBER
 
     const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
     const twiml = new VoiceResponse()
-    twiml.say(`Calling ${toPhoneNumber} with the purpose of ${purpose}`)
-  
-    const callOptions = {
-      to: toPhoneNumber,
-      from: fromPhoneNumber,
-      twiml: twiml.toString()
-    }
-  
-    client.calls.create(callOptions)
-      .then(call => {
-        const callSid = call.sid
-        const audioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls/${callSid}/Recordings.json`
-  
-        res.render('call', {
-          audioUrl: audioUrl,
-          phoneNumber: req.body.phoneNumber,
-          purpose: req.body.purpose
-        });
-      })
-      .catch(error => {
-        console.log(error);
-        res.status(500).send('Error making call');
-      });    
+    twiml.say(`Calling ${toPhoneNumber} to order a pizza.`)
+
+    client.calls
+    .create({
+       url: 'http://demo.twilio.com/docs/voice.xml',
+       to: toPhoneNumber,
+       from: fromPhoneNumber
+     })
+    .then(call => console.log(call.sid));
 
     res.render("call", {
+        phoneNumber: req.body.phoneNumber,
         name: req.body.name
     })
 })
