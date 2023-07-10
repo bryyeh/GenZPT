@@ -1,0 +1,131 @@
+<style>
+    body {
+    background-color: #f8f9fa;
+    }
+
+    .container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+    font-size: 36px;
+    margin-top: 0;
+    }
+
+    .chat-container {
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .chat-message {
+    padding: 10px;
+    border-radius: 5px;
+    margin: 10px;
+    }
+
+    .chat-message.receptionist {
+    background-color: #fff;
+    border: 1px solid #ccc;
+    }
+
+    .chat-message.agent {
+    background-color: #007bff;
+    color: #fff;
+    }
+
+    .form-group {
+    margin-bottom: 0;
+    }
+
+    label {
+    font-weight: bold;
+    }
+
+    input[type="text"] {
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    padding: 10px;
+    }
+
+    button[type="submit"] {
+    margin-top: 10px;
+    }
+</style>
+<div class="container">
+    <h1>AI Agent Chat</h1>
+    <div class="chat-container">
+    {{#each messages}}
+        <div class="chat-message {{sender}}">
+        <strong>{{sender}}:</strong> {{text}}
+        </div>
+    {{/each}}
+    </div>
+    <form>
+    <div class="form-group">
+        <label for="message">Message:</label>
+        <input type="text" id="message" name="message" class="form-control">
+    </div>
+    <button type="submit" class="btn btn-primary">Send</button>
+    </form>
+</div>
+
+
+<script>
+$(function() {
+  // Add event listener to clear chat log on page refresh
+  window.addEventListener('beforeunload', function() {
+    localStorage.removeItem('messages');
+  });
+
+  $('form').submit(function(event) {
+    event.preventDefault();
+    var message = $('#message').val();
+    if (message) {
+      addMessage('receptionist', message);
+      sendMessage(message);
+      $('#message').val('');
+    }
+  });
+
+  function sendMessage(message) {
+    $.ajax({
+        type: 'POST',
+        url: '/call_simulator_message',
+        data: { message: message },
+        success: function(response) {
+            addMessage('agent', response);
+        },
+        error: function(error) {
+            console.error(error);
+            addMessage('agent', 'I\'m sorry, I don\'t understand.');
+        }
+    });
+  }
+
+  function addMessage(sender, text) {
+    var message = { sender: sender, text: text };
+    var messages = JSON.parse(localStorage.getItem('messages')) || [];
+    messages.push(message);
+    localStorage.setItem('messages', JSON.stringify(messages));
+    $('.chat-container').append('<div class="chat-message ' + sender + '"><strong>' + sender + ':</strong> ' + text + '</div>');
+    $('.chat-container').scrollTop($('.chat-container')[0].scrollHeight);
+  }
+
+  function loadMessages() {
+    var messages = JSON.parse(localStorage.getItem('messages')) || [];
+    messages.forEach(function(message) {
+      $('.chat-container').append('<div class="chat-message ' + message.sender + '"><strong>' + message.sender + ':</strong> ' + message.text + '</div>');
+    });
+    $('.chat-container').scrollTop($('.chat-container')[0].scrollHeight);
+  }
+
+  loadMessages();
+});
+</script>

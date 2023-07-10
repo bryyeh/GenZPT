@@ -44,6 +44,14 @@ const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN // 'your_auth_token';
 const TWILIO_TO_PHONE_NUMBER = process.env.TWILIO_TO_PHONE_NUMBER // '+15005550006';
 const TWILIO_FROM_PHONE_NUMBER = process.env.TWILIO_FROM_PHONE_NUMBER // '+15005550006';
 
+// OpenAI
+const { Configuration, OpenAIApi } = require("openai");
+
+const OPENAI_API_KEY = process.env['OPENAI_API_KEY']
+const openaiConfiguration = new Configuration({
+    apiKey: OPENAI_API_KEY,
+});
+const openai = new OpenAIApi(openaiConfiguration);
 
 /******************************** Routes ********************************/
 
@@ -53,6 +61,35 @@ app.get('/', (req, res) => {
         defaultToPhoneNumber: TWILIO_TO_PHONE_NUMBER,
     })
 })
+
+app.get('/call_simulator', async (req, res) => {
+    res.render("call_simulator", {})
+})
+
+app.post('/call_simulator_message', async (req, res) => {
+
+    if(req.session.messages == undefined) {
+        req.session.messages = []
+    }
+
+
+    const chatCompletion = await openai.createChatCompletion({
+        model: "gpt-3.5-turbo",
+        messages: [{role: "user", content: "Hello world"}],
+    })
+
+    var reply = chatCompletion.data.choices[0].message
+
+    req.session.messages.push(reply)
+
+    console.log(reply)
+
+    res.send(reply.content)
+})
+
+
+
+
 
 app.post('/call', (req, res) => {
 
@@ -70,7 +107,9 @@ app.post('/call', (req, res) => {
        to: toPhoneNumber,
        from: fromPhoneNumber
      })
-    .then(call => console.log(call.sid));
+    .then(call => {
+        console.log(call.sid)
+    })
 
     res.render("call", {
         phoneNumber: req.body.phoneNumber,
