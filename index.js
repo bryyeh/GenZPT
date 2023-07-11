@@ -115,12 +115,14 @@ app.post('/call', (req, res) => {
 })
 
 app.get('/twiml', (req, res) => {
-    res.render("twiml", {
-        voice: 'woman',
-        greeting: "Hello from GenZPT!"
-    })
-})
-
+    const twiml = `
+      <Response>
+        <Say voice="woman">Hello from GenZPT!</Say>
+      </Response>
+    `;
+    res.type('text/xml');
+    res.send(twiml);
+  })
 
 // app.get('/listen', (request, response) => {
 //     // Get the call SID from the request body
