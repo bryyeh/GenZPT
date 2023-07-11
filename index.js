@@ -72,7 +72,6 @@ app.post('/call_simulator_message', async (req, res) => {
         req.session.messages = []
     }
 
-
     const chatCompletion = await openai.createChatCompletion({
         model: "gpt-3.5-turbo",
         messages: [{role: "user", content: "Hello world"}],
@@ -81,8 +80,6 @@ app.post('/call_simulator_message', async (req, res) => {
     var reply = chatCompletion.data.choices[0].message
 
     req.session.messages.push(reply)
-
-    console.log(reply)
 
     res.send(reply.content)
 })
@@ -103,7 +100,7 @@ app.post('/call', (req, res) => {
 
     client.calls
     .create({
-       url: 'http://demo.twilio.com/docs/voice.xml',
+       url: '/twiml',
        to: toPhoneNumber,
        from: fromPhoneNumber
      })
@@ -116,6 +113,31 @@ app.post('/call', (req, res) => {
         name: req.body.name
     })
 })
+
+app.get('/twiml', (req, res) => {
+    res.render("twiml", {
+        voice: 'woman',
+        greeting: "Hello from GenZPT!"
+    })
+})
+
+
+// app.get('/listen', (request, response) => {
+//     // Get the call SID from the request body
+//     const callSid = request.body.CallSid;
+
+//     // Create a TwiML response that will play the call audio
+//     const twiml = new twilio.twiml.VoiceResponse();
+//     twiml.play(callSid);
+
+//     // Render the response as XML in reply to the webhook request
+//     response.type('text/xml');
+//     response.send(twiml.toString());
+// });
+
+
+
+
 
 app.listen(3000, () => {
   console.log('Example app listening on port 3000!')
