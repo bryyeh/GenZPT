@@ -100,7 +100,7 @@ app.post('/call', (req, res) => {
 
     client.calls
     .create({
-       url: '/twiml',
+       url: 'https://genzpt.bkgupta.repl.co/twiml',
        to: toPhoneNumber,
        from: fromPhoneNumber
      })
@@ -113,31 +113,6 @@ app.post('/call', (req, res) => {
         name: req.body.name
     })
 })
-
-app.get('/twiml', (req, res) => {
-    const twiml = `
-      <Response>
-        <Say voice="woman">Hello from GenZPT!</Say>
-      </Response>
-    `;
-    res.type('text/xml');
-    res.send(twiml);
-  })
-
-// app.get('/listen', (request, response) => {
-//     // Get the call SID from the request body
-//     const callSid = request.body.CallSid;
-
-//     // Create a TwiML response that will play the call audio
-//     const twiml = new twilio.twiml.VoiceResponse();
-//     twiml.play(callSid);
-
-//     // Render the response as XML in reply to the webhook request
-//     response.type('text/xml');
-//     response.send(twiml.toString());
-// });
-
-
 
 
 
