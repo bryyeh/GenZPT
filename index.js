@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 
 // Express (server)
 const express = require('express')
@@ -34,9 +35,9 @@ app.use(express.json());
 const twilio = require('twilio');
 const VoiceResponse = twilio.twiml.VoiceResponse;
 
-if(!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
-    console.log("Please set the TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN environment variables in your .env file. \nYou can find your Twilio credentials at https://www.twilio.com/console")
-    process.exit(1)
+if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+	console.log("Please set the TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN environment variables in your .env file. \nYou can find your Twilio credentials at https://www.twilio.com/console")
+	process.exit(1)
 }
 
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID // 'your_account_sid';
@@ -49,7 +50,7 @@ const { Configuration, OpenAIApi } = require("openai");
 
 const OPENAI_API_KEY = process.env['OPENAI_API_KEY']
 const openaiConfiguration = new Configuration({
-    apiKey: OPENAI_API_KEY,
+	apiKey: OPENAI_API_KEY,
 });
 const openai = new OpenAIApi(openaiConfiguration);
 
@@ -57,31 +58,31 @@ const openai = new OpenAIApi(openaiConfiguration);
 
 
 app.get('/', (req, res) => {
-    res.render("call_form", {
-        defaultToPhoneNumber: TWILIO_TO_PHONE_NUMBER,
-    })
+	res.render("call_form", {
+		defaultToPhoneNumber: TWILIO_TO_PHONE_NUMBER,
+	})
 })
 
 app.get('/call_simulator', async (req, res) => {
-    res.render("call_simulator", {})
+	res.render("call_simulator", {})
 })
 
 app.post('/call_simulator_message', async (req, res) => {
 
-    if(req.session.messages == undefined) {
-        req.session.messages = []
-    }
+	if (req.session.messages == undefined) {
+		req.session.messages = []
+	}
 
-    const chatCompletion = await openai.createChatCompletion({
-        model: "gpt-3.5-turbo",
-        messages: [{role: "user", content: "Hello world"}],
-    })
+	const chatCompletion = await openai.createChatCompletion({
+		model: "gpt-3.5-turbo",
+		messages: [{ role: "user", content: "Hello world" }],
+	})
 
-    var reply = chatCompletion.data.choices[0].message
+	var reply = chatCompletion.data.choices[0].message
 
-    req.session.messages.push(reply)
+	req.session.messages.push(reply)
 
-    res.send(reply.content)
+	res.send(reply.content)
 })
 
 
@@ -90,31 +91,42 @@ app.post('/call_simulator_message', async (req, res) => {
 
 app.post('/call', (req, res) => {
 
-    const toPhoneNumber = req.body.phoneNumber
-    const fromPhoneNumber = TWILIO_FROM_PHONE_NUMBER
+	const toPhoneNumber = req.body.phoneNumber
+	const fromPhoneNumber = TWILIO_FROM_PHONE_NUMBER
 
-    const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+	const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
-    const twiml = new VoiceResponse()
-    twiml.say(`Calling ${toPhoneNumber} to order a pizza.`)
+	const twiml = new VoiceResponse()
+	twiml.say(`Calling ${toPhoneNumber} to order a pizza.`)
 
-    client.calls
-    .create({
-       url: 'https://genzpt.bkgupta.repl.co/twiml',
-       to: toPhoneNumber,
-       from: fromPhoneNumber
-     })
-    .then(call => {
-        console.log(call.sid)
-    })
+	client.calls
+		.create({
+			url: 'https://genzpt.bkgupta.repl.co/twiml',
+			to: toPhoneNumber,
+			from: fromPhoneNumber
+		})
+		.then(call => {
+			console.log(call.sid)
+		})
 
-    res.render("call", {
-        phoneNumber: req.body.phoneNumber,
-        name: req.body.name
-    })
+	res.render("call", {
+		phoneNumber: req.body.phoneNumber,
+		name: req.body.name
+	})
 })
 
-app.post('/twiml', express.static('public', { method: 'POST' }));
+app.post('/twiml', (req, res) => {
+	const filePath = __dirname + '/public/twiml.xml';
+	fs.readFile(filePath, 'utf8', (err, data) => {
+		if (err) {
+			console.error(err);
+			res.status(500).send('Internal server error');
+		} else {
+			res.type('text/xml');
+			res.status(200).send(data);
+		}
+	})
+})
 
 // app.get('/listen', (request, response) => {
 //     // Get the call SID from the request body
@@ -134,5 +146,5 @@ app.post('/twiml', express.static('public', { method: 'POST' }));
 
 
 app.listen(3000, () => {
-  console.log('Example app listening on port 3000!')
+	console.log('Example app listening on port 3000!')
 })
