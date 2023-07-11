@@ -114,6 +114,23 @@ app.post('/call', (req, res) => {
     })
 })
 
+app.post('/twiml', express.static('public', { method: 'POST' }));
+
+// app.get('/listen', (request, response) => {
+//     // Get the call SID from the request body
+//     const callSid = request.body.CallSid;
+
+//     // Create a TwiML response that will play the call audio
+//     const twiml = new twilio.twiml.VoiceResponse();
+//     twiml.play(callSid);
+
+//     // Render the response as XML in reply to the webhook request
+//     response.type('text/xml');
+//     response.send(twiml.toString());
+// });
+
+
+
 
 
 app.listen(3000, () => {
