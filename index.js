@@ -72,10 +72,11 @@ app.post('/call_simulator_message', async (req, res) => {
 	if (req.session.messages == undefined) {
 		req.session.messages = []
 	}
+	req.session.messages.push({role: "user", content: req.body.message})
 
 	const chatCompletion = await openai.createChatCompletion({
 		model: "gpt-3.5-turbo",
-		messages: [{ role: "user", content: "Hello world" }],
+		messages: req.session.messages,
 	})
 
 	var reply = chatCompletion.data.choices[0].message
