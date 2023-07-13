@@ -48,7 +48,7 @@ const TWILIO_FROM_PHONE_NUMBER = process.env.TWILIO_FROM_PHONE_NUMBER // '+15005
 // OpenAI
 const { Configuration, OpenAIApi } = require("openai");
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY // 'your_api_key';
+const OPENAI_API_KEY = process.env['OPENAI_API_KEY']
 const openaiConfiguration = new Configuration({
 	apiKey: OPENAI_API_KEY,
 });
@@ -68,21 +68,25 @@ app.get('/call_simulator', async (req, res) => {
 })
 
 app.post('/call_simulator_message', async (req, res) => {
-	if (req.body.message == undefined) {
-		req.body.message = []
+
+	if (req.session.messages == undefined) {
+		req.session.messages = []
 	}
 
 	const chatCompletion = await openai.createChatCompletion({
 		model: "gpt-3.5-turbo",
-		messages: [{ role: "user", content: req.body.message }],
+		messages: [{ role: "user", content: "Hello world" }],
 	})
 
 	var reply = chatCompletion.data.choices[0].message
 
-	//req.session.messages.push(reply)
+	req.session.messages.push(reply)
 
 	res.send(reply.content)
 })
+
+
+
 
 
 app.post('/call', (req, res) => {

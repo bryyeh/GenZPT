@@ -5,7 +5,6 @@
     "express-session": "^1.17.3",
     "langchain": "^0.0.105",
     "openai": "^3.3.0",
-    "save-dev": "^0.0.1-security",
     "twilio": "^4.13.0"
   },
   "devDependencies": {
