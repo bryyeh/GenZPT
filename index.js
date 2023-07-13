@@ -32,9 +32,6 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
 // Twilio
-const twilio = require('twilio');
-const VoiceResponse = twilio.twiml.VoiceResponse;
-
 if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
 	console.log("Please set the TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN environment variables in your .env file. \nYou can find your Twilio credentials at https://www.twilio.com/console")
 	process.exit(1)
@@ -44,6 +41,10 @@ const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID // 'your_account_sid';
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN // 'your_auth_token';
 const TWILIO_TO_PHONE_NUMBER = process.env.TWILIO_TO_PHONE_NUMBER // '+15005550006';
 const TWILIO_FROM_PHONE_NUMBER = process.env.TWILIO_FROM_PHONE_NUMBER // '+15005550006';
+const SERVER_URL = process.env.SERVER_URL // 'https://e769-2a00-79e1-abc-1566-e0b3-2fdb-1f6f-366a.ngrok-free.app';
+
+const twilio = require('twilio')(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+const VoiceResponse = require('twilio').twiml.VoiceResponse
 
 // OpenAI
 const { Configuration, OpenAIApi } = require("openai");
@@ -85,63 +86,67 @@ app.post('/call_simulator_message', async (req, res) => {
 	res.send(reply.content)
 })
 
+async function whatShouldISay(whatTheySaid) {
+
+	var reply = whatTheySaid // TODO: Replace this with something real
+
+	return(reply)
+}
 
 
+async function make_call(toPhoneNumber, fromPhoneNumber){
+	var response = new VoiceResponse();
+
+	response.gather({
+		input: 'speech',
+		action: SERVER_URL + '/speech_input'
+	})
 
 
-app.post('/call', (req, res) => {
+	var call = await twilio.calls.create({
+		twiml: response.toString(),
+		to: TWILIO_TO_PHONE_NUMBER,
+		from: TWILIO_FROM_PHONE_NUMBER
+	})
+
+	return("Done")
+}
+
+app.post('/call', async (req, res) => {
 
 	const toPhoneNumber = req.body.phoneNumber
 	const fromPhoneNumber = TWILIO_FROM_PHONE_NUMBER
+	const name = req.body.name
 
-	const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+	console.log(`Making a test call to ${toPhoneNumber}`)
 
-	const twiml = new VoiceResponse()
-	twiml.say(`Calling ${toPhoneNumber} to order a pizza.`)
-
-	client.calls
-		.create({
-			url: 'https://genzpt.bkgupta.repl.co/twiml',
-			to: toPhoneNumber,
-			from: fromPhoneNumber
-		})
-		.then(call => {
-			console.log(call.sid)
-		})
-
+	var result = await make_call(toPhoneNumber, fromPhoneNumber)
 	res.render("call", {
-		phoneNumber: req.body.phoneNumber,
-		name: req.body.name
+		name: name
 	})
 })
 
-app.post('/twiml', (req, res) => {
-	const filePath = __dirname + '/public/twiml.xml';
-	fs.readFile(filePath, 'utf8', (err, data) => {
-		if (err) {
-			console.error(err);
-			res.status(500).send('Internal server error');
-		} else {
-			res.type('text/xml');
-			res.status(200).send(data);
-		}
+
+app.post('/speech_input', async (req, res) => {
+
+	console.log("User said: ", req.body.SpeechResult)
+
+	var reply = await whatShouldISay(req.body.SpeechResult)
+
+	var response = new VoiceResponse()
+	
+	response.say(reply)
+
+	response.gather({
+		input: 'speech',
+		action: SERVER_URL + '/speech_input'
 	})
+
+	res.type('text/xml')
+	res.send(response.toString())
 })
 
-// app.get('/listen', (request, response) => {
-//     // Get the call SID from the request body
-//     const callSid = request.body.CallSid;
-
-//     // Create a TwiML response that will play the call audio
-//     const twiml = new twilio.twiml.VoiceResponse();
-//     twiml.play(callSid);
-
-//     // Render the response as XML in reply to the webhook request
-//     response.type('text/xml');
-//     response.send(twiml.toString());
-// });
-
-
+// make_call(TWILIO_TO_PHONE_NUMBER, TWILIO_FROM_PHONE_NUMBER)
 
 
 
