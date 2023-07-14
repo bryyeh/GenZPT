@@ -41,10 +41,12 @@ const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID // 'your_account_sid';
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN // 'your_auth_token';
 const TWILIO_TO_PHONE_NUMBER = process.env.TWILIO_TO_PHONE_NUMBER // '+15005550006';
 const TWILIO_FROM_PHONE_NUMBER = process.env.TWILIO_FROM_PHONE_NUMBER // '+15005550006';
-const SERVER_URL = process.env.SERVER_URL // 'https://e769-2a00-79e1-abc-1566-e0b3-2fdb-1f6f-366a.ngrok-free.app';
+const SERVER_DOMAIN = process.env.SERVER_DOMAIN // 'https://e769-2a00-79e1-abc-1566-e0b3-2fdb-1f6f-366a.ngrok-free.app';
 
 const twilio = require('twilio')(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 const VoiceResponse = require('twilio').twiml.VoiceResponse
+
+
 
 // OpenAI
 const { Configuration, OpenAIApi } = require("openai");
@@ -98,14 +100,19 @@ async function whatShouldISay(whatTheySaid) {
 }
 
 
+function gather_speech(response){
+	return response.gather({
+		input: 'speech',
+		action: 'https://' + SERVER_DOMAIN + '/speech_input',
+		speechTimeout: 1
+	})	
+}
+
+
 async function make_call(toPhoneNumber, fromPhoneNumber){
 	var response = new VoiceResponse();
 
-	response.gather({
-		input: 'speech',
-		action: SERVER_URL + '/speech_input'
-	})
-
+	gather_speech(response)
 
 	var call = await twilio.calls.create({
 		twiml: response.toString(),
@@ -130,7 +137,6 @@ app.post('/call', async (req, res) => {
 	})
 })
 
-
 app.post('/speech_input', async (req, res) => {
 
 	console.log("User said: ", req.body.SpeechResult)
@@ -141,10 +147,7 @@ app.post('/speech_input', async (req, res) => {
 	
 	response.say(reply)
 
-	response.gather({
-		input: 'speech',
-		action: SERVER_URL + '/speech_input'
-	})
+	gather_speech(response)
 
 	res.type('text/xml')
 	res.send(response.toString())
