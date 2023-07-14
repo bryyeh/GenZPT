@@ -70,8 +70,10 @@ app.get('/call_simulator', async (req, res) => {
 
 app.post('/call_simulator_message', async (req, res) => {
 
+	// How will GPT know when to stop phone call?
 	if (req.session.messages == undefined) {
-		req.session.messages = []
+		req.session.messages = [{role:"system", content:"You are an assistant ordering a pizza for your boss. " +
+		"You are on the phone with the pizza place. Your boss wants a large pepperoni pizza delivered to 123 Main Street."}]
 	}
 	req.session.messages.push({role: "user", content: req.body.message})
 
@@ -83,6 +85,7 @@ app.post('/call_simulator_message', async (req, res) => {
 	var reply = chatCompletion.data.choices[0].message
 
 	req.session.messages.push(reply)
+	console.log(req.session.messages)
 
 	res.send(reply.content)
 })
