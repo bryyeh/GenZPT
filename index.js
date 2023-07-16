@@ -55,6 +55,8 @@ const openaiConfiguration = new Configuration({
 });
 const openai = new OpenAIApi(openaiConfiguration);
 
+const transcript = []
+
 /******************************** Routes ********************************/
 
 
@@ -137,6 +139,11 @@ app.post('/call', async (req, res) => {
 app.post('/speech_input', async (req, res) => {
 
 	console.log("User said: ", req.body.SpeechResult)
+
+	const chatCompletion = await openai.createChatCompletion({
+		model: "gpt-3.5-turbo",
+		messages: req.session.messages,
+	})
 
 	var reply = await whatShouldISay(req.body.SpeechResult)
 
