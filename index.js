@@ -45,12 +45,10 @@ const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID // 'your_account_sid';
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN // 'your_auth_token';
 const TWILIO_TO_PHONE_NUMBER = process.env.TWILIO_TO_PHONE_NUMBER // '+15005550006';
 const TWILIO_FROM_PHONE_NUMBER = process.env.TWILIO_FROM_PHONE_NUMBER // '+15005550006';
-const SERVER_DOMAIN = process.env.SERVER_DOMAIN // 'https://e769-2a00-79e1-abc-1566-e0b3-2fdb-1f6f-366a.ngrok-free.app';
+const SERVER_URL = process.env.SERVER_URL // 'https://e769-2a00-79e1-abc-1566-e0b3-2fdb-1f6f-366a.ngrok-free.app';
 
 const twilio = require('twilio')(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 const VoiceResponse = require('twilio').twiml.VoiceResponse
-
-
 
 // OpenAI
 const { Configuration, OpenAIApi } = require("openai");
@@ -76,8 +74,13 @@ app.get('/call_simulator', async (req, res) => {
 
 app.post('/call_simulator_message', async (req, res) => {
 
+	// How do I store the messages over the phone call?
+	// How do I parameterize the system prompt?
+	// Address, pizza size, toppings
 	if (req.session.messages == undefined) {
-		req.session.messages = []
+		req.session.messages = [{role:"system", content:"You are an executive assistant ordering a pizza for your boss. " +
+		"You are on the phone with the pizza place. Your boss wants a large pepperoni pizza delivered to 123 Main Street. "+
+		"Keep your responses short and conversational."}]
 	}
 	req.session.messages.push({role: "user", content: req.body.message})
 
@@ -89,6 +92,7 @@ app.post('/call_simulator_message', async (req, res) => {
 	var reply = chatCompletion.data.choices[0].message
 
 	req.session.messages.push(reply)
+	console.log(req.session.messages)
 
 	res.send(reply.content)
 })
@@ -98,15 +102,6 @@ async function whatShouldISay(whatTheySaid) {
 	var reply = whatTheySaid // TODO: Replace this with something real
 
 	return(reply)
-}
-
-
-function gather_speech(response){
-	return response.gather({
-		input: 'speech',
-		action: 'https://' + SERVER_DOMAIN + '/speech_input',
-		speechTimeout: 1
-	})	
 }
 
 
@@ -121,7 +116,11 @@ async function make_call(toPhoneNumber, fromPhoneNumber){
 		// statusCallbackMethod: "POST"
 	})	
 
-	gather_speech(response)
+	response.gather({
+		input: 'speech',
+		action: SERVER_URL + '/speech_input'
+	})
+
 
 	var call = await twilio.calls.create({
 		twiml: response.toString(),
@@ -146,6 +145,7 @@ app.post('/call', async (req, res) => {
 	})
 })
 
+
 app.post('/speech_input', async (req, res) => {
 
 	console.log("User said: ", req.body.SpeechResult)
@@ -156,7 +156,10 @@ app.post('/speech_input', async (req, res) => {
 	
 	response.say(reply)
 
-	gather_speech(response)
+	response.gather({
+		input: 'speech',
+		action: SERVER_URL + '/speech_input'
+	})
 
 	res.type('text/xml')
 	res.send(response.toString())
