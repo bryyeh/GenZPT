@@ -55,7 +55,7 @@ const openaiConfiguration = new Configuration({
 });
 const openai = new OpenAIApi(openaiConfiguration);
 
-const transcript = []
+var transcript = []
 
 /******************************** Routes ********************************/
 
@@ -90,16 +90,25 @@ app.post('/call_simulator_message', async (req, res) => {
 	var reply = chatCompletion.data.choices[0].message
 
 	req.session.messages.push(reply)
-	console.log(req.session.messages)
+	//console.log(req.session.messages)
 
 	res.send(reply.content)
 })
 
 async function whatShouldISay(whatTheySaid) {
 
-	var reply = whatTheySaid // TODO: Replace this with something real
+	transcript.push({role: "user", content: whatTheySaid})
+	const chatCompletion = await openai.createChatCompletion({
+		model: "gpt-3.5-turbo",
+		messages: transcript,
+	})
 
-	return(reply)
+	var reply = chatCompletion.data.choices[0].message
+
+	transcript.push(reply)
+	console.log(transcript)
+
+	return(reply.content)
 }
 
 
@@ -127,6 +136,11 @@ app.post('/call', async (req, res) => {
 	const fromPhoneNumber = TWILIO_FROM_PHONE_NUMBER
 	const name = req.body.name
 
+	// Create system prompt
+	transcript = [{role:"system", content:"You are an executive assistant ordering a pizza for your boss. " +
+	"You are on the phone with the pizza place. Your boss wants a large pepperoni pizza delivered to 123 Main Street. "+
+	"Keep your responses short and conversational."}]
+
 	console.log(`Making a test call to ${toPhoneNumber}`)
 
 	var result = await make_call(toPhoneNumber, fromPhoneNumber)
@@ -139,11 +153,6 @@ app.post('/call', async (req, res) => {
 app.post('/speech_input', async (req, res) => {
 
 	console.log("User said: ", req.body.SpeechResult)
-
-	const chatCompletion = await openai.createChatCompletion({
-		model: "gpt-3.5-turbo",
-		messages: req.session.messages,
-	})
 
 	var reply = await whatShouldISay(req.body.SpeechResult)
 
