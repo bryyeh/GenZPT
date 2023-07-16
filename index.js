@@ -1,14 +1,20 @@
 const path = require('path');
 const fs = require('fs');
 
-// Express (server)
+// Express: Server
 const express = require('express')
 const app = express()
 
-// Express Handlebars (view engine)
+// Express: Handlebars view engine
 const handlebars = require('express-handlebars')
 
-// Use the session middleware
+app.engine('handlebars', handlebars.engine({}));
+
+app.set("view engine", 'handlebars');
+app.set('views', path.join(__dirname, '/views'));
+
+
+// Express: Session middleware
 var session = require('express-session')
 
 app.use(session({
@@ -18,11 +24,9 @@ app.use(session({
 	saveUninitialized: true
 }))
 
-// View engine setup
-app.engine('handlebars', handlebars.engine({}));
+// Express: WebSockets
+const WebSocket = require('ws');
 
-app.set("view engine", 'handlebars');
-app.set('views', path.join(__dirname, '/views'));
 
 //Static Folder
 app.use('/public', express.static(path.join(__dirname, 'public')))
@@ -41,7 +45,7 @@ const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID // 'your_account_sid';
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN // 'your_auth_token';
 const TWILIO_TO_PHONE_NUMBER = process.env.TWILIO_TO_PHONE_NUMBER // '+15005550006';
 const TWILIO_FROM_PHONE_NUMBER = process.env.TWILIO_FROM_PHONE_NUMBER // '+15005550006';
-const SERVER_URL = process.env.SERVER_URL // 'https://e769-2a00-79e1-abc-1566-e0b3-2fdb-1f6f-366a.ngrok-free.app';
+const SERVER_DOMAIN = process.env.SERVER_DOMAIN // 'https://e769-2a00-79e1-abc-1566-e0b3-2fdb-1f6f-366a.ngrok-free.app';
 
 const twilio = require('twilio')(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 const VoiceResponse = require('twilio').twiml.VoiceResponse
@@ -111,14 +115,27 @@ async function whatShouldISay(whatTheySaid) {
 	return(reply.content)
 }
 
+function gather_speech(response){
+	return response.gather({
+		input: 'speech',
+		action: 'https://' + SERVER_DOMAIN + '/speech_input',
+		speechTimeout: 1
+	})	
+}
+
 
 async function make_call(toPhoneNumber, fromPhoneNumber){
-	var response = new VoiceResponse();
+	var response = new VoiceResponse()
 
-	response.gather({
-		input: 'speech',
-		action: SERVER_URL + '/speech_input'
-	})
+	const start = response.start()
+	// start.stream({
+	// 	name: 'Example Audio Stream', // TODO: Replace this with something unique per phone call
+	// 	url: "wss://" + SERVER_DOMAIN + "/audiostream",
+	// 	// statusCallback: "https://" + SERVER_DOMAIN + "/audiostream_status",
+	// 	// statusCallbackMethod: "POST"
+	// })	
+
+	gather_speech(response)
 
 
 	var call = await twilio.calls.create({
@@ -160,19 +177,46 @@ app.post('/speech_input', async (req, res) => {
 	
 	response.say(reply)
 
-	response.gather({
-		input: 'speech',
-		action: SERVER_URL + '/speech_input'
-	})
+	gather_speech(response)
 
 	res.type('text/xml')
 	res.send(response.toString())
 })
 
-// make_call(TWILIO_TO_PHONE_NUMBER, TWILIO_FROM_PHONE_NUMBER)
+
+make_call(TWILIO_TO_PHONE_NUMBER, TWILIO_FROM_PHONE_NUMBER)
 
 
 
-app.listen(3000, () => {
+const server = app.listen(3000, () => {
 	console.log('Example app listening on port 3000!')
+})
+
+const wss = new WebSocket.Server({ server: server });
+
+// Handle WebSocket connections
+wss.on('connection', function connection(ws) {
+	console.log('WebSocket connected');
+
+	ws.on("message", (message) => {
+		message = JSON.parse(message);
+		switch (message.event) {
+			case "connected":
+				console.log("connected")
+
+			case "start":
+				// here comes the messages from all the conferences that are happening
+				// each message will have a callSid on start
+				// mediaFormat: { encoding: 'audio/x-mulaw', sampleRate: 8000, channels:1 }
+				console.log("callSid: ", message);
+				
+			case "media":
+				// here messges will have the streamSid and a payload
+				// console.log(message)
+			case "end":
+				break				
+			default:
+				break
+		}
+	})
 })
