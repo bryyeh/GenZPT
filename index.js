@@ -1,14 +1,20 @@
 const path = require('path');
 const fs = require('fs');
 
-// Express (server)
+// Express: Server
 const express = require('express')
 const app = express()
 
-// Express Handlebars (view engine)
+// Express: Handlebars view engine
 const handlebars = require('express-handlebars')
 
-// Use the session middleware
+app.engine('handlebars', handlebars.engine({}));
+
+app.set("view engine", 'handlebars');
+app.set('views', path.join(__dirname, '/views'));
+
+
+// Express: Session middleware
 var session = require('express-session')
 
 app.use(session({
@@ -18,11 +24,9 @@ app.use(session({
 	saveUninitialized: true
 }))
 
-// View engine setup
-app.engine('handlebars', handlebars.engine({}));
+// Express: WebSockets
+const WebSocket = require('ws');
 
-app.set("view engine", 'handlebars');
-app.set('views', path.join(__dirname, '/views'));
 
 //Static Folder
 app.use('/public', express.static(path.join(__dirname, 'public')))
@@ -107,7 +111,15 @@ function gather_speech(response){
 
 
 async function make_call(toPhoneNumber, fromPhoneNumber){
-	var response = new VoiceResponse();
+	var response = new VoiceResponse()
+
+	const start = response.start()
+	start.stream({
+		name: 'Example Audio Stream', // TODO: Replace this with something unique per phone call
+		url: "wss://" + SERVER_DOMAIN + "/audiostream",
+		// statusCallback: "https://" + SERVER_DOMAIN + "/audiostream_status",
+		// statusCallbackMethod: "POST"
+	})	
 
 	gather_speech(response)
 
@@ -150,10 +162,40 @@ app.post('/speech_input', async (req, res) => {
 	res.send(response.toString())
 })
 
+
 // make_call(TWILIO_TO_PHONE_NUMBER, TWILIO_FROM_PHONE_NUMBER)
 
 
 
-app.listen(3000, () => {
+const server = app.listen(3000, () => {
 	console.log('Example app listening on port 3000!')
+})
+
+const wss = new WebSocket.Server({ server: server });
+
+// Handle WebSocket connections
+wss.on('connection', function connection(ws) {
+	console.log('WebSocket connected');
+
+	ws.on("message", (message) => {
+		message = JSON.parse(message);
+		switch (message.event) {
+			case "connected":
+				console.log("connected")
+
+			case "start":
+				// here comes the messages from all the conferences that are happening
+				// each message will have a callSid on start
+				// mediaFormat: { encoding: 'audio/x-mulaw', sampleRate: 8000, channels:1 }
+				console.log("callSid: ", message);
+				
+			case "media":
+				// here messges will have the streamSid and a payload
+				// console.log(message)
+			case "end":
+				break				
+			default:
+				break
+		}
+	})
 })
