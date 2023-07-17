@@ -59,6 +59,8 @@ const openaiConfiguration = new Configuration({
 });
 const openai = new OpenAIApi(openaiConfiguration);
 
+var transcript = []
+
 /******************************** Routes ********************************/
 
 
@@ -92,16 +94,25 @@ app.post('/call_simulator_message', async (req, res) => {
 	var reply = chatCompletion.data.choices[0].message
 
 	req.session.messages.push(reply)
-	console.log(req.session.messages)
+	//console.log(req.session.messages)
 
 	res.send(reply.content)
 })
 
 async function whatShouldISay(whatTheySaid) {
 
-	var reply = whatTheySaid // TODO: Replace this with something real
+	transcript.push({role: "user", content: whatTheySaid})
+	const chatCompletion = await openai.createChatCompletion({
+		model: "gpt-3.5-turbo",
+		messages: transcript,
+	})
 
-	return(reply)
+	var reply = chatCompletion.data.choices[0].message
+
+	transcript.push(reply)
+	// console.log(transcript)
+
+	return(reply.content)
 }
 
 function gather_speech(response){
@@ -141,6 +152,15 @@ app.post('/call', async (req, res) => {
 	const toPhoneNumber = req.body.phoneNumber
 	const fromPhoneNumber = TWILIO_FROM_PHONE_NUMBER
 	const name = req.body.name
+	const deliveryAddress = req.body.deliveryAddress
+	const pizzaSize = req.body.pizzaSize
+	const toppings = req.body.toppings
+
+	// Create system prompt
+	transcript = [{role:"system", content:`You are an executive assistant ordering a pizza for your boss. ` +
+	`Your boss wants a ${pizzaSize} sized pizza with ${toppings} delivered to ${deliveryAddress}. `+
+	`The name for the order is ${name}. The phone number is ${fromPhoneNumber}. ` + 
+	`You are on the phone with the pizza place. Keep your responses short and polite.`}]
 
 	console.log(`Making a call to ${toPhoneNumber}`)
 
