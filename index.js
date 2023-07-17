@@ -110,7 +110,7 @@ async function whatShouldISay(whatTheySaid) {
 	var reply = chatCompletion.data.choices[0].message
 
 	transcript.push(reply)
-	console.log(transcript)
+	// console.log(transcript)
 
 	return(reply.content)
 }
@@ -155,7 +155,6 @@ app.post('/call', async (req, res) => {
 	const deliveryAddress = req.body.deliveryAddress
 	const pizzaSize = req.body.pizzaSize
 	const toppings = req.body.toppings
-	console.log(deliveryAddress, pizzaSize, toppings)
 
 	// Create system prompt
 	transcript = [{role:"system", content:`You are an executive assistant ordering a pizza for your boss. ` +
