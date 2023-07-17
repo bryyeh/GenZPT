@@ -117,12 +117,12 @@ async function make_call(toPhoneNumber, fromPhoneNumber){
 	var response = new VoiceResponse()
 
 	const start = response.start()
-	// start.stream({
-	// 	name: 'Example Audio Stream', // TODO: Replace this with something unique per phone call
-	// 	url: "wss://" + SERVER_DOMAIN + "/audiostream",
-	// 	// statusCallback: "https://" + SERVER_DOMAIN + "/audiostream_status",
-	// 	// statusCallbackMethod: "POST"
-	// })	
+	start.stream({
+		name: 'Twilio Audio Stream', // TODO: Replace this with something unique per phone call
+		url: "wss://" + SERVER_DOMAIN + "/audio_stream",
+		// statusCallback: "https://" + SERVER_DOMAIN + "/audiostream_status",
+		// statusCallbackMethod: "POST"
+	})	
 
 	gather_speech(response)
 
@@ -142,7 +142,7 @@ app.post('/call', async (req, res) => {
 	const fromPhoneNumber = TWILIO_FROM_PHONE_NUMBER
 	const name = req.body.name
 
-	console.log(`Making a test call to ${toPhoneNumber}`)
+	console.log(`Making a call to ${toPhoneNumber}`)
 
 	var result = await make_call(toPhoneNumber, fromPhoneNumber)
 	res.render("call", {
@@ -168,39 +168,49 @@ app.post('/speech_input', async (req, res) => {
 })
 
 
-make_call(TWILIO_TO_PHONE_NUMBER, TWILIO_FROM_PHONE_NUMBER)
+// make_call(TWILIO_TO_PHONE_NUMBER, TWILIO_FROM_PHONE_NUMBER)
 
 
 
-const server = app.listen(3000, () => {
-	console.log('Example app listening on port 3000!')
-})
-
-const wss = new WebSocket.Server({ server: server });
+// Create a WebSocket server that listens on the /audio_stream path
+const wss = new WebSocket.Server({ noServer: true });
+app.on('upgrade', (request, socket, head) => {
+  if (request.url === '/audio_stream') {
+    wss.handleUpgrade(request, socket, head, (socket) => {
+      wss.emit('connection', socket, request);
+    });
+  } else {
+    socket.destroy();
+  }
+});
 
 // Handle WebSocket connections
 wss.on('connection', function connection(ws) {
-	console.log('WebSocket connected');
+  console.log('WebSocket connected');
 
-	ws.on("message", (message) => {
-		message = JSON.parse(message);
-		switch (message.event) {
-			case "connected":
-				console.log("connected")
+  // Broadcast audio data to other WebSocket connections
+  ws.on('message', function incoming(data) {
+    console.log('Received audio data');
+    wss.clients.forEach(function each(client) {
+      if (client !== ws && client.readyState === WebSocket.OPEN) {
+        client.send(data);
+      }
+    });
+  });
+});
 
-			case "start":
-				// here comes the messages from all the conferences that are happening
-				// each message will have a callSid on start
-				// mediaFormat: { encoding: 'audio/x-mulaw', sampleRate: 8000, channels:1 }
-				console.log("callSid: ", message);
-				
-			case "media":
-				// here messges will have the streamSid and a payload
-				// console.log(message)
-			case "end":
-				break				
-			default:
-				break
-		}
-	})
-})
+// Start the server
+const server = app.listen(3000, () => {
+  console.log('Example app listening on port 3000!')
+});
+
+// Start the WebSocket server
+server.on('upgrade', (request, socket, head) => {
+  if (request.url === '/audio_stream') {
+    wss.handleUpgrade(request, socket, head, (socket) => {
+      wss.emit('connection', socket, request);
+    });
+  } else {
+    socket.destroy();
+  }
+});
