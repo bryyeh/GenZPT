@@ -152,11 +152,16 @@ app.post('/call', async (req, res) => {
 	const toPhoneNumber = req.body.phoneNumber
 	const fromPhoneNumber = TWILIO_FROM_PHONE_NUMBER
 	const name = req.body.name
+	const deliveryAddress = req.body.deliveryAddress
+	const pizzaSize = req.body.pizzaSize
+	const toppings = req.body.toppings
+	console.log(deliveryAddress, pizzaSize, toppings)
 
 	// Create system prompt
-	transcript = [{role:"system", content:"You are an executive assistant ordering a pizza for your boss. " +
-	"You are on the phone with the pizza place. Your boss wants a large pepperoni pizza delivered to 123 Main Street. "+
-	"Keep your responses short and conversational."}]
+	transcript = [{role:"system", content:`You are an executive assistant ordering a pizza for your boss. ` +
+	`Your boss wants a ${pizzaSize} sized pizza with ${toppings} delivered to ${deliveryAddress}. `+
+	`The name for the order is ${name}. The phone number is ${fromPhoneNumber}. ` + 
+	`You are on the phone with the pizza place. Keep your responses short and polite.`}]
 
 	console.log(`Making a test call to ${toPhoneNumber}`)
 
@@ -184,7 +189,7 @@ app.post('/speech_input', async (req, res) => {
 })
 
 
-make_call(TWILIO_TO_PHONE_NUMBER, TWILIO_FROM_PHONE_NUMBER)
+// make_call(TWILIO_TO_PHONE_NUMBER, TWILIO_FROM_PHONE_NUMBER)
 
 
 
