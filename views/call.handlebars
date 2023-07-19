@@ -25,8 +25,27 @@
 
 <div class="call-container">
   <p class="call-message">Ordering a pizza for <span class="call-name">{{name}}</span>.</p>
-  <audio controls class="call-audio">
-    <source src="/audio_stream" type="audio/mpeg">
-    Your browser does not support the audio element.
-  </audio>
+  <audio id="audio-element" type="audio/x-mulaw"></audio>
+  <button id="start-stream" class="btn btn-primary">Start Audio Stream</button>
 </div>
+
+<script>
+
+// const audio = new Audio();
+var audio = document.querySelector("#audio-element");
+
+
+document.getElementById('start-stream').addEventListener('click', function() {
+
+  const socket = new WebSocket('ws://localhost:3000/audio_stream');
+  socket.addEventListener('message', function(event) {
+    console.log(event.data)
+    
+    audio.src = "data:audio/x-mulaw;base64," + event.data;
+    audio.play();
+    
+  });
+
+
+});
+</script>

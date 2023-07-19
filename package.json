@@ -6,6 +6,7 @@
     "langchain": "^0.0.105",
     "openai": "^3.3.0",
     "twilio": "^4.13.0",
+    "wavefile": "^11.0.0",
     "ws": "^8.13.0"
   },
   "devDependencies": {

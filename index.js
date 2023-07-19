@@ -1,5 +1,14 @@
+// TODO: voice should sound less robotic
+// TODO: decrease response latency
+// TODO: don't hang up when there's a long pause
+// TODO: say each digit of a phone number
+// TODO: add a way to pay
+
+
+
 const path = require('path');
 const fs = require('fs');
+const { Buffer } = require('buffer');
 
 // Express: Server
 const express = require('express')
@@ -119,7 +128,7 @@ function gather_speech(response){
 	return response.gather({
 		input: 'speech',
 		action: 'https://' + SERVER_DOMAIN + '/speech_input',
-		speechTimeout: 1
+		speechTimeout: 0.5
 	})	
 }
 
@@ -131,8 +140,9 @@ async function make_call(toPhoneNumber, fromPhoneNumber){
 	start.stream({
 		name: 'Twilio Audio Stream', // TODO: Replace this with something unique per phone call
 		url: "wss://" + SERVER_DOMAIN + "/audio_stream",
-		// statusCallback: "https://" + SERVER_DOMAIN + "/audiostream_status",
-		// statusCallbackMethod: "POST"
+		track: "both_tracks",
+		statusCallback: "https://" + SERVER_DOMAIN + "/audiostream_status",
+		statusCallbackMethod: "POST"
 	})	
 
 	gather_speech(response)
@@ -187,39 +197,57 @@ app.post('/speech_input', async (req, res) => {
 	res.send(response.toString())
 })
 
+app.post('/audiostream_status', async (req, res) => {
+	// console.log("Audio stream status: ", req.body)
+	res.send("Done")
+})
 
-// make_call(TWILIO_TO_PHONE_NUMBER, TWILIO_FROM_PHONE_NUMBER)
 
 
 
 // Create a WebSocket server that listens on the /audio_stream path
 const wss = new WebSocket.Server({ noServer: true });
-app.on('upgrade', (request, socket, head) => {
-  if (request.url === '/audio_stream') {
-    wss.handleUpgrade(request, socket, head, (socket) => {
-      wss.emit('connection', socket, request);
-    });
-  } else {
-    socket.destroy();
-  }
-});
 
 // Handle WebSocket connections
 wss.on('connection', function connection(ws) {
   console.log('WebSocket connected');
 
-  // Broadcast audio data to other WebSocket connections
-  ws.on('message', function incoming(data) {
-    console.log('Received audio data');
-    wss.clients.forEach(function each(client) {
-      if (client !== ws && client.readyState === WebSocket.OPEN) {
-        client.send(data);
-      }
-    });
-  });
+  ws.on('message', (message) => {
+	const msg = JSON.parse(message)
+	// console.log(msg)
+
+  	switch (msg.event) {
+		case 'connected':
+			console.log('Connected to Twilio Audio Stream');
+			break;
+		case 'start':
+			console.log('Media stream started');
+			console.log(msg)
+			
+			break;
+		case 'media':
+			console.log('Media chunk received');
+
+			const payloadBinary = Buffer.from(msg.media.payload, 'base64');
+			
+			wss.clients.forEach(function each(client) {
+				if (client !== ws && client.readyState === WebSocket.OPEN) {
+					// Send the audio data to the browser
+					client.send(payloadBinary);
+				}
+			});
+			break;
+		case 'stop':
+			console.log('Media stream ended');
+			break;
+		default:
+			console.log('Unhandled event');
+	}
+
+  })
 });
 
-// Start the server
+// Start the Expressserver
 const server = app.listen(3000, () => {
   console.log('Example app listening on port 3000!')
 });
@@ -234,3 +262,6 @@ server.on('upgrade', (request, socket, head) => {
     socket.destroy();
   }
 });
+
+
+// make_call(TWILIO_TO_PHONE_NUMBER, TWILIO_FROM_PHONE_NUMBER)
