@@ -135,23 +135,25 @@ function gather_speech(response){
 
 
 async function make_call(toPhoneNumber, fromPhoneNumber){
-	var response = new VoiceResponse()
+	console.log(`Making a call to ${toPhoneNumber}`)
 
-	const start = response.start()
+	var twiml = new VoiceResponse()
+
+	const start = twiml.start()
 	start.stream({
 		name: 'Twilio Audio Stream', // TODO: Replace this with something unique per phone call
 		url: "wss://" + SERVER_DOMAIN + "/audio_stream",
 		track: "both_tracks",
 		statusCallback: "https://" + SERVER_DOMAIN + "/audiostream_status",
 		statusCallbackMethod: "POST"
-	})	
+	})
 
-	gather_speech(response)
+	gather_speech(twiml)
 
-	var call = await twilio.calls.create({
-		twiml: response.toString(),
-		to: TWILIO_TO_PHONE_NUMBER,
-		from: TWILIO_FROM_PHONE_NUMBER
+	await twilio.calls.create({
+		twiml: twiml.toString(),
+		to: toPhoneNumber,
+		from: fromPhoneNumber,
 	})
 
 	return("Done")
@@ -159,7 +161,7 @@ async function make_call(toPhoneNumber, fromPhoneNumber){
 
 app.post('/call', async (req, res) => {
 
-	const toPhoneNumber = req.body.phoneNumber
+	const toPhoneNumber = req.body.toPhoneNumber
 	const fromPhoneNumber = TWILIO_FROM_PHONE_NUMBER
 	const name = req.body.name
 	const deliveryAddress = req.body.deliveryAddress
@@ -172,9 +174,8 @@ app.post('/call', async (req, res) => {
 	`The name for the order is ${name}. The phone number is ${fromPhoneNumber}. ` + 
 	`You are on the phone with the pizza place. Keep your responses short and polite.`}]
 
-	console.log(`Making a call to ${toPhoneNumber}`)
+	await make_call(toPhoneNumber, fromPhoneNumber)
 
-	var result = await make_call(toPhoneNumber, fromPhoneNumber)
 	res.render("call", {
 		name: name
 	})
@@ -187,8 +188,9 @@ app.post('/speech_input', async (req, res) => {
 
 	var reply = await whatShouldISay(req.body.SpeechResult)
 
-	var response = new VoiceResponse()
-	
+	console.log("Assistant said: ", reply)
+
+	var response = new VoiceResponse()	
 	response.say(reply)
 
 	gather_speech(response)
@@ -202,7 +204,21 @@ app.post('/audiostream_status', async (req, res) => {
 	res.send("Done")
 })
 
+
+
+
+
+
+
+
+
+
+
+
+
 const ts = require('tailing-stream')
+const WaveFile = require('wavefile').WaveFile;
+
 
 app.get('/eavesdrop', (req, res) => {
 	const filePath = 'call_recording.wav';
@@ -213,9 +229,17 @@ app.get('/eavesdrop', (req, res) => {
 	//   'Content-Length': stat.size
 	});
   
-	const readStream = ts.createReadStream(filePath);
+	const readStream = ts.createReadStream(filePath, {
+		beginAt: 0,
+		onMove: 'stay',
+		detectTruncate: true,
+		onTruncate: 'end',
+		endOnError: false		
+	});
+
+	console.log("Piping audio stream to browser")
 	readStream.pipe(res);
-  });
+});
 
 
 // Create a WebSocket server that listens on the /audio_stream path
@@ -253,40 +277,48 @@ wss.on('connection', function connection(socket) {
 				}
 			});
 
-			socket.wstreamTestingSomething = fs.createWriteStream('call_recording.txt', { encoding: 'utf8' })
-			
 			break;
 		case 'media':
 			// console.log('Media chunk received');
 
+			// if(message.media.track != 'outbound') {
+			// 	break
+			// }
 
-			if(message.media.track != 'outbound') {
-				break
-			}			
+			var payloadBinary = Buffer.from(message.media.payload, 'base64')
+
+			
+			const wav = new WaveFile();
+			wav.fromScratch(1, 8000, '8m', payloadBinary);
+			wav.fromMuLaw();
+			wav.toSampleRate(88200);
+			// let dataURI = wav.toDataURI();
+			// item.audioPayload = dataURI;
+			// this.sendAgentMessage(item, this.connection);			
+			var payloadBinary = wav.toDataURI();
 
 			// decode the base64-encoded data and write to stream
-			var payloadBinary = Buffer.from(message.media.payload, 'base64')
-			socket.wstream.write(payloadBinary);
-
-			socket.wstreamTestingSomething.write(JSON.stringify(message) + "\n")
 			
+			// socket.wstream.write(payloadBinary);
+
 			wss.clients.forEach(function each(client) {
 				if (client !== socket && client.readyState === WebSocket.OPEN) {
 					// Send the audio data to the browser
 					client.send(payloadBinary);
 				}
 			});
+
 			break;
 		case 'stop':
 			console.log('Media stream ended');
 
 			// Now the only thing missing is to write the number of data bytes in the header
 			socket.wstream.write("", () => {
-				let fd = ts.openSync(socket.wstream.path, 'r+'); // `r+` mode is needed in order to write to arbitrary position
+				let fd = fs.openSync(socket.wstream.path, 'r+'); // `r+` mode is needed in order to write to arbitrary position
 				let count = socket.wstream.bytesWritten;
 				count -= 58; // The header itself is 58 bytes long and we only want the data byte length
-				console.log(count)
-				ts.writeSync(
+				// console.log(count)
+				fs.writeSync(
 				fd,
 				Buffer.from([
 					count % 256,
@@ -299,8 +331,6 @@ wss.on('connection', function connection(socket) {
 				54, // starts writing at byte 54 in the file
 				);
 			});
-
-			socket.wstreamTestingSomething.write("done")
 
 			break;
 		default:
@@ -328,3 +358,4 @@ server.on('upgrade', (request, socket, head) => {
 
 
 // make_call(TWILIO_TO_PHONE_NUMBER, TWILIO_FROM_PHONE_NUMBER)
+// make_call('4156719694', TWILIO_FROM_PHONE_NUMBER)

@@ -35,13 +35,14 @@
 var audio = document.querySelector("#audio-element");
 
 
+
 document.getElementById('start-stream').addEventListener('click', function() {
 
-  {{!-- audio.src = '/eavesdrop'
-  audio.play() --}}
+  {{!-- audio.src = '/eavesdrop' --}}
+  {{!-- audio.play() --}}
 
 
-  const socket = new WebSocket('ws://localhost:3000/audio_stream');
+  {{!-- const socket = new WebSocket('ws://localhost:3000/audio_stream');
   socket.binaryType = 'arraybuffer'; // Ensure that we receive binary data
 
   socket.addEventListener('message', function(event) {
@@ -56,7 +57,15 @@ document.getElementById('start-stream').addEventListener('click', function() {
     // Create an Audio object and play the audio
     const audio = new Audio(url);
     audio.play();
-  });
+  }); --}}
+
+  const socket = new WebSocket('ws://localhost:3000/audio_stream');
+  {{!-- socket.binaryType = 'arraybuffer'; // Ensure that we receive binary data --}}
+
+  socket.addEventListener('message', function(event) {
+    var snd = new Audio(event.data);
+    snd.play();
+  })
 
 });
 </script>
