@@ -270,26 +270,28 @@ wss.on('connection', function connection(socket) {
 			  ])
 			socket.wstream.write(header);
 
-			wss.clients.forEach(function each(client) {
-				if (client !== socket && client.readyState === WebSocket.OPEN) {
-					// Send the audio data to the browser
-					client.send(header);
-				}
-			});
+			// wss.clients.forEach(function each(client) {
+			// 	if (client !== socket && client.readyState === WebSocket.OPEN) {
+			// 		// Send the audio data to the browser
+			// 		client.send(header);
+			// 	}
+			// });
 
 			break;
 		case 'media':
 			// console.log('Media chunk received');
 
-			// if(message.media.track != 'outbound') {
-			// 	break
-			// }
-
 			var payloadBinary = Buffer.from(message.media.payload, 'base64')
+			// console.log(payloadBinary.length)
+			// console.log(message.media.payload)
+
+			socket.wstream.write(payloadBinary)
+
+
 
 			
 			const wav = new WaveFile();
-			wav.fromScratch(2, 8000, '8m', payloadBinary);
+			wav.fromScratch(1, 8000, '8m', payloadBinary);
 			wav.fromMuLaw();
 			wav.toSampleRate(44100);
 			// let dataURI = wav.toDataURI();
@@ -299,14 +301,6 @@ wss.on('connection', function connection(socket) {
 
 			// decode the base64-encoded data and write to stream
 			
-			if(message.media.track == 'outbound') {
-				socket.wstream.write(payloadBinary)
-				new Array(payloadBinary.length).fill(0)
-			} 
-			if(message.media.track == 'inbound') {
-				new Array(payloadBinary.length).fill(0)
-				socket.wstream.write(payloadBinary)
-			}
 			// socket.wstream.write(wav.toBuffer());
 			
 
@@ -322,7 +316,7 @@ wss.on('connection', function connection(socket) {
 		case 'stop':
 			console.log('Media stream ended');
 
-			// // Now the only thing missing is to write the number of data bytes in the header
+			// Now the only thing missing is to write the number of data bytes in the header
 			socket.wstream.write("", () => {
 				let fd = fs.openSync(socket.wstream.path, 'r+'); // `r+` mode is needed in order to write to arbitrary position
 				let count = socket.wstream.bytesWritten;
@@ -368,4 +362,4 @@ server.on('upgrade', (request, socket, head) => {
 
 
 // make_call(TWILIO_TO_PHONE_NUMBER, TWILIO_FROM_PHONE_NUMBER)
-make_call('4156719694', TWILIO_FROM_PHONE_NUMBER)
+// make_call('4156719694', TWILIO_FROM_PHONE_NUMBER)

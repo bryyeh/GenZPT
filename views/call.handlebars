@@ -62,6 +62,9 @@ document.getElementById('start-stream').addEventListener('click', function() {
   const socket = new WebSocket('ws://localhost:3000/audio_stream');
   {{!-- socket.binaryType = 'arraybuffer'; // Ensure that we receive binary data --}}
 
+
+
+
   socket.addEventListener('message', function(event) {
     var snd = new Audio(event.data);
     snd.play();
