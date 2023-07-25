@@ -244,6 +244,75 @@ app.get('/eavesdrop', (req, res) => {
 
 // Create a WebSocket server that listens on the /audio_stream path
 const wss = new WebSocket.Server({ noServer: true });
+const mediaQueue = []
+
+
+// Takes two tracks of audio and merges them into one
+function interleave(payloadBinary1, payloadBinary2){
+
+	// Create arrays for the two channels
+	let leftChannel = Array.from(payloadBinary1);
+	let rightChannel = Array.from(payloadBinary2);
+
+	// Interleave the two channels
+	let interleaved = [];
+	for (let i = 0; i < leftChannel.length; i++) {
+		interleaved.push(leftChannel[i], rightChannel[i]);
+	}
+
+	var payloadBinary = Buffer.from(interleaved);
+
+
+	return payloadBinary
+}
+
+function dequeue_audio(mediaQueue){
+
+	var media = mediaQueue.shift()
+
+	// If the queue's first two items have the same timestamp (or off by just 1ms)
+	var isSimilarTimestamp = Math.abs(media.timestamp - mediaQueue[0].timestamp) <= 5
+
+	// Get both payloads
+	if (isSimilarTimestamp){
+
+		console.log("merging")
+		
+		if(media.track == 'inbound'){
+			var payload1 = media.payload
+			var payload2 = mediaQueue.shift().payload
+		}
+		else{
+			var payload2 = media.payload
+			var payload1 = mediaQueue.shift().payload
+		}
+
+		media.track = "merged"
+	}
+
+	// Else one payload will have silence
+	else{
+		let zeros = new Uint8Array(160);
+		
+		// Return the first item in the queue, merged with silence
+		if(media.track == 'inbound'){
+			var payload1 = media.payload
+			var payload2 = Buffer.from(zeros).toString('base64')
+		}
+		else{
+			var payload2 = media.payload
+			var payload1 = Buffer.from(zeros).toString('base64')
+		}
+
+	}
+
+	media.payloadBinary1 = Buffer.from(payload1, 'base64')
+	media.payloadBinary2 = Buffer.from(payload2, 'base64')
+
+	// console.log(JSON.stringify(media))
+	return media
+
+}
 
 // Handle WebSocket connections
 wss.on('connection', function connection(socket) {
@@ -259,53 +328,56 @@ wss.on('connection', function connection(socket) {
 		case 'start':
 			console.log('Media stream started');
 
-			let streamSid = message.start.streamSid;
-			socket.wstream = fs.createWriteStream('call_recording.wav', { encoding: 'binary' });
-			// This is a mu-law header for a WAV-file compatible with twilio format
+			// This is a mu-law header for a WAV-file compatible with twilio format (updated for two channel output)
 			let header = Buffer.from([
 				0x52,0x49,0x46,0x46,0x62,0xb8,0x00,0x00,0x57,0x41,0x56,0x45,0x66,0x6d,0x74,0x20,
-				0x12,0x00,0x00,0x00,0x07,0x00,0x01,0x00,0x40,0x1f,0x00,0x00,0x80,0x3e,0x00,0x00,
+				0x12,0x00,0x00,0x00,0x07,0x00,0x02,0x00,0x40,0x1f,0x00,0x00,0x80,0x3e,0x00,0x00,
 				0x02,0x00,0x04,0x00,0x00,0x00,0x66,0x61,0x63,0x74,0x04,0x00,0x00,0x00,0xc5,0x5b,
 				0x00,0x00,0x64,0x61,0x74,0x61,0x00,0x00,0x00,0x00, // Those last 4 bytes are the data length
-			  ])
+			])
+
+			// Write to wav file			
+			let streamSid = message.start.streamSid;
+			socket.wstream = fs.createWriteStream('call_recording.wav', { encoding: 'binary' });
 			socket.wstream.write(header);
 
-			// wss.clients.forEach(function each(client) {
-			// 	if (client !== socket && client.readyState === WebSocket.OPEN) {
-			// 		// Send the audio data to the browser
-			// 		client.send(header);
-			// 	}
-			// });
+			// Write to text log
+			socket.wstreamLog = fs.createWriteStream('call_recording.txt', { encoding: 'utf-8' });
+			socket.wstreamRawLog = fs.createWriteStream('call_recording_raw.txt', { encoding: 'utf-8' });
+
 
 			break;
 		case 'media':
-			// console.log('Media chunk received');
+			// Write to raw log
+			socket.wstreamRawLog.write(JSON.stringify(message) + "\n")
 
-			var payloadBinary = Buffer.from(message.media.payload, 'base64')
-			// console.log(payloadBinary.length)
-			// console.log(message.media.payload)
+			mediaQueue.push(message.media)
 
-			socket.wstream.write(payloadBinary)
+			if(mediaQueue.length < 30){
+				break
+			}
+		
+			// Sort the buffer by timestamp
+			mediaQueue.sort((a, b) => a.timestamp - b.timestamp);
+			var mediaProcessed = dequeue_audio(mediaQueue)
 
+			// Write to text log
+			socket.wstreamLog.write(JSON.stringify(mediaProcessed) + "\n")
 
-
+			// Write to wav file
+			var interleaved = interleave(mediaProcessed.payloadBinary1, mediaProcessed.payloadBinary2)
+			socket.wstream.write(interleaved)
 			
-			const wav = new WaveFile();
-			wav.fromScratch(1, 8000, '8m', payloadBinary);
-			wav.fromMuLaw();
-			wav.toSampleRate(44100);
-			// let dataURI = wav.toDataURI();
-			// item.audioPayload = dataURI;
-			// this.sendAgentMessage(item, this.connection);			
-			var wavDataURI = wav.toDataURI();
+			// Wav data for the browser
+			const wav1 = new WaveFile();
+			wav1.fromScratch(2, 8000, '8m', [mediaProcessed.payloadBinary1, mediaProcessed.payloadBinary2]);
+			wav1.fromMuLaw();
+			wav1.toSampleRate(44100);
+			var wavDataURI = wav1.toDataURI();
 
-			// decode the base64-encoded data and write to stream
-			
-			// socket.wstream.write(wav.toBuffer());
-			
-
+			// Send the audio data to browser
 			wss.clients.forEach(function each(client) {
-				if (client !== socket && client.readyState === WebSocket.OPEN) {
+				if (wavDataURI && client !== socket && client.readyState === WebSocket.OPEN) {
 					// Send the audio data to the browser
 					// client.send(payloadBinary);
 					client.send(wavDataURI);
@@ -336,6 +408,8 @@ wss.on('connection', function connection(socket) {
 				);
 			});
 
+			socket.wstreamLog.write("Done")
+
 			break;
 		default:
 			console.log('Unhandled event');
@@ -361,5 +435,5 @@ server.on('upgrade', (request, socket, head) => {
 });
 
 
-// make_call(TWILIO_TO_PHONE_NUMBER, TWILIO_FROM_PHONE_NUMBER)
+make_call(TWILIO_TO_PHONE_NUMBER, TWILIO_FROM_PHONE_NUMBER)
 // make_call('4156719694', TWILIO_FROM_PHONE_NUMBER)

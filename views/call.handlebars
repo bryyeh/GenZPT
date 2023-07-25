@@ -63,8 +63,6 @@ document.getElementById('start-stream').addEventListener('click', function() {
   {{!-- socket.binaryType = 'arraybuffer'; // Ensure that we receive binary data --}}
 
 
-
-
   socket.addEventListener('message', function(event) {
     var snd = new Audio(event.data);
     snd.play();
