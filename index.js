@@ -244,7 +244,7 @@ app.get('/eavesdrop', (req, res) => {
 
 // Create a WebSocket server that listens on the /audio_stream path
 const wss = new WebSocket.Server({ noServer: true });
-const mediaQueue = []
+var mediaQueue = []
 
 
 // Takes two tracks of audio and merges them into one
@@ -266,25 +266,23 @@ function interleave(payloadBinary1, payloadBinary2){
 	return payloadBinary
 }
 
-function dequeue_audio(mediaQueue){
+function dequeueAudio(mediaQueue){
 
 	var media = mediaQueue.shift()
 
-	// If the queue's first two items have the same timestamp (or off by just 1ms)
+	// If the queue's first two items have the same timestamp (or off by just a few ms), then merge them
 	var isSimilarTimestamp = Math.abs(media.timestamp - mediaQueue[0].timestamp) <= 5
 
 	// Get both payloads
 	if (isSimilarTimestamp){
-
-		console.log("merging")
 		
 		if(media.track == 'inbound'){
-			var payload1 = media.payload
-			var payload2 = mediaQueue.shift().payload
+			media.inboundPayload = media.payload
+			media.outboundPayload = mediaQueue.shift().payload
 		}
 		else{
-			var payload2 = media.payload
-			var payload1 = mediaQueue.shift().payload
+			media.inboundPayload = mediaQueue.shift().payload
+			media.outboundPayload = media.payload
 		}
 
 		media.track = "merged"
@@ -292,26 +290,46 @@ function dequeue_audio(mediaQueue){
 
 	// Else one payload will have silence
 	else{
-		let zeros = new Uint8Array(160);
+		// let zeros = new Uint8Array(160);
 		
 		// Return the first item in the queue, merged with silence
 		if(media.track == 'inbound'){
-			var payload1 = media.payload
-			var payload2 = Buffer.from(zeros).toString('base64')
+			media.inboundPayload = media.payload
+			media.outboundPayload = "/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////w==" 
+			// var outboundPayload = Buffer.from(zeros).toString('base64')
 		}
 		else{
-			var payload2 = media.payload
-			var payload1 = Buffer.from(zeros).toString('base64')
+			// var inboundPayload = Buffer.from(zeros).toString('base64')
+			media.inboundPayload = "/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////w==" 
+			media.outboundPayload = media.payload
 		}
 
 	}
 
-	media.payloadBinary1 = Buffer.from(payload1, 'base64')
-	media.payloadBinary2 = Buffer.from(payload2, 'base64')
-
-	// console.log(JSON.stringify(media))
 	return media
 
+}
+
+function updateWavFileHeader(socket){
+	// Now the only thing missing is to write the number of data bytes in the header
+	socket.wstream.write("", () => {
+		let fd = fs.openSync(socket.wstream.path, 'r+'); // `r+` mode is needed in order to write to arbitrary position
+		let count = socket.wstream.bytesWritten;
+		count -= 58; // The header itself is 58 bytes long and we only want the data byte length
+		// console.log(count)
+		fs.writeSync(
+			fd,
+			Buffer.from([
+				count % 256,
+				(count >> 8) % 256,
+				(count >> 16) % 256,
+				(count >> 24) % 256,
+			]),
+			0,
+			4, // Write 4 bytes
+			54, // starts writing at byte 54 in the file
+		);
+	});	
 }
 
 // Handle WebSocket connections
@@ -348,9 +366,18 @@ wss.on('connection', function connection(socket) {
 
 			break;
 		case 'media':
-			// Write to raw log
-			socket.wstreamRawLog.write(JSON.stringify(message) + "\n")
+			// // Write to raw log
+			// socket.wstreamRawLog.write(JSON.stringify(message) + "\n")
 
+			// Send the audio data to browser
+			wss.clients.forEach(function each(client) {
+				if (client !== socket && client.readyState === WebSocket.OPEN) {
+					client.send(JSON.stringify(message.media))
+				}
+			})
+						
+
+			// Add the audio data to the queue for recording
 			mediaQueue.push(message.media)
 
 			if(mediaQueue.length < 30){
@@ -358,57 +385,28 @@ wss.on('connection', function connection(socket) {
 			}
 		
 			// Sort the buffer by timestamp
-			mediaQueue.sort((a, b) => a.timestamp - b.timestamp);
-			var mediaProcessed = dequeue_audio(mediaQueue)
+			mediaQueue.sort((a, b) => {a.timestamp - b.timestamp});
+
+
+
+			var processedMedia = dequeueAudio(mediaQueue)
 
 			// Write to text log
-			socket.wstreamLog.write(JSON.stringify(mediaProcessed) + "\n")
+			socket.wstreamLog.write(JSON.stringify(processedMedia) + "\n")
 
 			// Write to wav file
-			var interleaved = interleave(mediaProcessed.payloadBinary1, mediaProcessed.payloadBinary2)
+			var inboundBinary = Buffer.from(processedMedia.inboundPayload, 'base64')
+			var outboundBinary = Buffer.from(processedMedia.outboundPayload, 'base64')
+			var interleaved = interleave(inboundBinary, outboundBinary)
 			socket.wstream.write(interleaved)
 			
-			// Wav data for the browser
-			const wav1 = new WaveFile();
-			wav1.fromScratch(2, 8000, '8m', [mediaProcessed.payloadBinary1, mediaProcessed.payloadBinary2]);
-			wav1.fromMuLaw();
-			wav1.toSampleRate(44100);
-			var wavDataURI = wav1.toDataURI();
-
-			// Send the audio data to browser
-			wss.clients.forEach(function each(client) {
-				if (wavDataURI && client !== socket && client.readyState === WebSocket.OPEN) {
-					// Send the audio data to the browser
-					// client.send(payloadBinary);
-					client.send(wavDataURI);
-				}
-			});
 
 			break;
 		case 'stop':
 			console.log('Media stream ended');
 
-			// Now the only thing missing is to write the number of data bytes in the header
-			socket.wstream.write("", () => {
-				let fd = fs.openSync(socket.wstream.path, 'r+'); // `r+` mode is needed in order to write to arbitrary position
-				let count = socket.wstream.bytesWritten;
-				count -= 58; // The header itself is 58 bytes long and we only want the data byte length
-				// console.log(count)
-				fs.writeSync(
-				fd,
-				Buffer.from([
-					count % 256,
-					(count >> 8) % 256,
-					(count >> 16) % 256,
-					(count >> 24) % 256,
-				]),
-				0,
-				4, // Write 4 bytes
-				54, // starts writing at byte 54 in the file
-				);
-			});
-
-			socket.wstreamLog.write("Done")
+			// TODO: record/stream/log the last 30 audio chunks left in mediaQueue
+			updateWavFileHeader(socket)
 
 			break;
 		default:
@@ -435,5 +433,5 @@ server.on('upgrade', (request, socket, head) => {
 });
 
 
-make_call(TWILIO_TO_PHONE_NUMBER, TWILIO_FROM_PHONE_NUMBER)
+// make_call(TWILIO_TO_PHONE_NUMBER, TWILIO_FROM_PHONE_NUMBER)
 // make_call('4156719694', TWILIO_FROM_PHONE_NUMBER)

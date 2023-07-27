@@ -29,44 +29,113 @@
   <button id="start-stream" class="btn btn-primary">Start Audio Stream</button>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/wavefile"></script>
+
 <script>
 
 // const audio = new Audio();
-var audio = document.querySelector("#audio-element");
+// var audio = document.querySelector("#audio-element");
 
 
+function base64ToArrayBuffer(base64) {
+  var binaryString = window.atob(base64);
+  var binaryLen = binaryString.length;
+  var bytes = new Uint8Array(binaryLen);
+  for (var i = 0; i < binaryLen; i++) {
+      var ascii = binaryString.charCodeAt(i);
+      bytes[i] = ascii;
+  }
+  return bytes;
+}
 
+function playBuffer(bufferArray) {
+
+    let wav = new wavefile.WaveFile();
+    wav.fromScratch(2, 8000, '8m', bufferArray);
+		wav.fromMuLaw()
+		wav.toSampleRate(44100)
+
+    let wavDataURI = wav.toDataURI();
+
+    let audio = new Audio(wavDataURI);
+    audio.play();
+}
+
+
+function dequeueAudio(mediaQueue){
+
+	var media = mediaQueue.shift()
+
+	// If the queue's first two items have the same timestamp (or off by just a few ms), then merge them
+	var isSimilarTimestamp = Math.abs(media.timestamp - mediaQueue[0].timestamp) <= 5
+
+	// Get both payloads
+	if (isSimilarTimestamp){
+		
+		if(media.track == 'inbound'){
+			media.inboundPayload = media.payload
+			media.outboundPayload = mediaQueue.shift().payload
+		}
+		else{
+			media.inboundPayload = mediaQueue.shift().payload
+			media.outboundPayload = media.payload
+		}
+
+		media.track = "merged"
+	}
+
+	// Else one payload will have silence
+	else{
+		// let zeros = new Uint8Array(160);
+		
+		// Return the first item in the queue, merged with silence
+		if(media.track == 'inbound'){
+			media.inboundPayload = media.payload
+			media.outboundPayload = "/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////w==" 
+			// var outboundPayload = Buffer.from(zeros).toString('base64')
+		}
+		else{
+			// var inboundPayload = Buffer.from(zeros).toString('base64')
+			media.inboundPayload = "/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////w==" 
+			media.outboundPayload = media.payload
+		}
+
+	}
+
+	return media
+
+}
+
+// When the user starts to stream the audio
 document.getElementById('start-stream').addEventListener('click', function() {
 
-  {{!-- audio.src = '/eavesdrop' --}}
-  {{!-- audio.play() --}}
+  var mediaQueue = []
 
-
-  {{!-- const socket = new WebSocket('ws://localhost:3000/audio_stream');
+  const socket = new WebSocket('ws://localhost:3000/audio_stream');
   socket.binaryType = 'arraybuffer'; // Ensure that we receive binary data
 
   socket.addEventListener('message', function(event) {
-    console.log(event.data)
+    var media = JSON.parse(event.data)
 
-    // Create a Blob from the ArrayBuffer
-    const blob = new Blob([event.data], { type: 'audio/wav' });
+    // Add the audio data to the queue for recording
+    mediaQueue.push(media)
 
-    // Create an Object URL from the Blob
-    const url = URL.createObjectURL(blob);
+    if(mediaQueue.length < 30){
+      return
+    }
+  
+    // Sort the buffer by timestamp
+    mediaQueue.sort((a, b) => a.timestamp - b.timestamp);
+    var processedMedia = dequeueAudio(mediaQueue)
 
-    // Create an Audio object and play the audio
-    const audio = new Audio(url);
-    audio.play();
-  }); --}}
+    var inboundBinary = base64ToArrayBuffer(processedMedia.inboundPayload)
+    var outboundBinary = base64ToArrayBuffer(processedMedia.outboundPayload)
 
-  const socket = new WebSocket('ws://localhost:3000/audio_stream');
-  {{!-- socket.binaryType = 'arraybuffer'; // Ensure that we receive binary data --}}
+    // Play the audio
+    playBuffer([inboundBinary, outboundBinary])
 
-
-  socket.addEventListener('message', function(event) {
-    var snd = new Audio(event.data);
-    snd.play();
   })
+
 
 });
 </script>
