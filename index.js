@@ -81,7 +81,7 @@ app.get('/', (req, res) => {
 })
 
 app.get('/call_simulator', async (req, res) => {
-	res.render("call_simulator", {})
+	res.render("call_simulator")
 })
 
 app.post('/call_simulator_message', async (req, res) => {
@@ -111,6 +111,8 @@ app.post('/call_simulator_message', async (req, res) => {
 
 async function whatShouldISay(whatTheySaid) {
 
+	console.log("What they said", whatTheySaid)
+
 	transcript.push({role: "user", content: whatTheySaid})
 	const chatCompletion = await openai.createChatCompletion({
 		model: "gpt-3.5-turbo",
@@ -129,7 +131,9 @@ function gather_speech(response){
 	return response.gather({
 		input: 'speech',
 		action: 'https://' + SERVER_DOMAIN + '/speech_input',
-		speechTimeout: 0.5
+		speechTimeout: 0.5,
+		enhanced: true,
+		// actionOnEmptyResult: true
 	})	
 }
 
@@ -180,7 +184,8 @@ app.post('/call', async (req, res) => {
 
 	res.render("call", {
 		name: name,
-		callID: callID
+		callID: callID,
+		webSocketURL: 'ws://' + SERVER_DOMAIN + '/audio_stream'		
 	})
 })
 
@@ -311,11 +316,11 @@ function dequeueAudio(mediaQueue){
 
 }
 
-function updateWavFileHeader(socket){
+function updateWavFileHeader(stream){
 	// Now the only thing missing is to write the number of data bytes in the header
-	socket.wstream.write("", () => {
-		let fd = fs.openSync(socket.wstream.path, 'r+'); // `r+` mode is needed in order to write to arbitrary position
-		let count = socket.wstream.bytesWritten;
+	stream.write("", () => {
+		let fd = fs.openSync(stream.path, 'r+'); // `r+` mode is needed in order to write to arbitrary position
+		let count = stream.bytesWritten;
 		count -= 58; // The header itself is 58 bytes long and we only want the data byte length
 		// console.log(count)
 		fs.writeSync(
@@ -339,7 +344,7 @@ function sendToClients(wss, socket, message){
 	wss.clients.forEach(function each(client) {
 		if (client !== socket && client.readyState === WebSocket.OPEN) {
 			// client.send(JSON.stringify(message.media))
-			client.send(JSON.stringify(processedMedia))
+			client.send(JSON.stringify(message))
 		}
 	})
 }
@@ -389,9 +394,11 @@ wss.on('connection', function connection(socket) {
 
 			break;
 		case 'media':
-			// // Write to raw log
+			// Write to raw log
 			socket.wstreamRawLog.write(JSON.stringify(message) + "\n")
 
+			// Send to browser
+			sendToClients(wss, socket, message.media)
 
 			// Add the audio data to the queue for recording
 			mediaQueue.push(message.media)
@@ -405,11 +412,9 @@ wss.on('connection', function connection(socket) {
 				return parseInt(a.timestamp) - parseInt(b.timestamp);
 			});
 
-			// Send next media chunk to client
+			// Get next media chunk from queue
 			var processedMedia = dequeueAudio(mediaQueue)
-			var processedMediaJSON = JSON.stringify(processedMedia)
 
-			sendToClients(wss, socket, processedMediaJSON)
 
 			// Write to text log
 			socket.wstreamLog.write(JSON.stringify(processedMedia) + "\n")
@@ -419,14 +424,13 @@ wss.on('connection', function connection(socket) {
 			var outboundBinary = Buffer.from(processedMedia.outboundPayload, 'base64')
 			var interleaved = interleave(inboundBinary, outboundBinary)
 			socket.wstream.write(interleaved)
-			
 
 			break;
 		case 'stop':
 			console.log('Media stream ended');
 
 			// TODO: record/stream/log the last 30 audio chunks left in mediaQueue
-			updateWavFileHeader(socket)
+			updateWavFileHeader(socket.wstream)
 
 			break;
 		default:

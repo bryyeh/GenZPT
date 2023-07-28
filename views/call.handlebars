@@ -86,7 +86,6 @@ function dequeueAudio(mediaQueue){
 
 	// Else one payload will have silence
 	else{
-		// let zeros = new Uint8Array(160);
 		
 		// Return the first item in the queue, merged with silence
 		if(media.track == 'inbound'){
@@ -113,6 +112,53 @@ function concatUint8Arrays(a, b) {
   return c;
 }
 
+function base64ToArrayBuffer(base64) {
+  var binaryString = window.atob(base64);
+  var binaryLen = binaryString.length;
+  var bytes = new Uint8Array(binaryLen);
+  for (var i = 0; i < binaryLen; i++) {
+      var ascii = binaryString.charCodeAt(i);
+      bytes[i] = ascii;
+  }
+  return bytes;
+}
+
+const socket = new WebSocket('ws://localhost:3000/audio_stream');
+socket.binaryType = 'arraybuffer'; // Ensure that we receive binary data
+var mediaQueue = []
+
+document.getElementById('start-stream').addEventListener('click', function() {
+  socket.addEventListener('message', function(event) {  
+
+    const media = JSON.parse(event.data);
+    {{!-- playBuffer([base64ToArrayBuffer(media.payload), base64ToArrayBuffer(media.payload)]) --}}
+    {{!-- return --}}
+    
+    // Add the audio data to the queue for recording
+    mediaQueue.push(media)
+
+    if(mediaQueue.length < 5){
+      return
+    }
+  
+    // Sort the buffer by timestamp
+    mediaQueue.sort((a, b) => {
+      return parseInt(a.timestamp) - parseInt(b.timestamp);
+    });
+
+    // Send next media chunk to client
+    var processedMedia = dequeueAudio(mediaQueue)
+
+    // console.log(processedMedia)
+
+    var inboundBinary = base64ToArrayBuffer(processedMedia.inboundPayload)
+    var outboundBinary = base64ToArrayBuffer(processedMedia.outboundPayload)
+
+    playBuffer([inboundBinary, outboundBinary])
+  })
+})
+
+{{!-- 
 // When the user starts to stream the audio
 document.getElementById('start-stream').addEventListener('click', function() {
 
@@ -130,6 +176,8 @@ document.getElementById('start-stream').addEventListener('click', function() {
   let latest_inbound_timestamp = 0;
   let latest_outbound_timestamp = 0;
 
+
+  
   const socket = new WebSocket('ws://localhost:3000/audio_stream');
   socket.binaryType = 'arraybuffer'; // Ensure that we receive binary data
 
@@ -182,8 +230,7 @@ document.getElementById('start-stream').addEventListener('click', function() {
       outbuffer = outbuffer.slice(BUFFER_SIZE);
     }
 
-  })
-
-
+  }) 
 });
+--}}
 </script>
