@@ -106,6 +106,8 @@ function dequeueAudio(mediaQueue){
 
 }
 
+var lastTimestamp
+
 // When the user starts to stream the audio
 document.getElementById('start-stream').addEventListener('click', function() {
 
@@ -117,6 +119,19 @@ document.getElementById('start-stream').addEventListener('click', function() {
   socket.addEventListener('message', function(event) {
     var media = JSON.parse(event.data)
 
+    // Log the current time and media.timestamp
+
+    let now = new Date();
+    console.log(now.getHours() + ":" + now.getMinutes() + ":" + now.getSeconds() + ":" + now.getMilliseconds());
+    console.log(media.track, " | ", media.timestamp, " | ", media.timestamp - lastTimestamp);
+    lastTimestamp = media.timestamp
+
+    var inboundBinary = base64ToArrayBuffer(media.inboundPayload)
+    var outboundBinary = base64ToArrayBuffer(media.outboundPayload) 
+    
+    playBuffer([inboundBinary, outboundBinary])  
+
+    {{!-- 
     // Add the audio data to the queue for recording
     mediaQueue.push(media)
 
@@ -125,14 +140,18 @@ document.getElementById('start-stream').addEventListener('click', function() {
     }
   
     // Sort the buffer by timestamp
-    mediaQueue.sort((a, b) => a.timestamp - b.timestamp);
+    mediaQueue.sort((a, b) => {
+      return parseInt(a.timestamp) - parseInt(b.timestamp);
+    })
+
     var processedMedia = dequeueAudio(mediaQueue)
 
     var inboundBinary = base64ToArrayBuffer(processedMedia.inboundPayload)
     var outboundBinary = base64ToArrayBuffer(processedMedia.outboundPayload)
 
     // Play the audio
-    playBuffer([inboundBinary, outboundBinary])
+    playBuffer([inboundBinary, outboundBinary]) 
+    --}}
 
   })
 

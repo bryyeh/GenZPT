@@ -150,13 +150,13 @@ async function make_call(toPhoneNumber, fromPhoneNumber){
 
 	gather_speech(twiml)
 
-	await twilio.calls.create({
+	var call = await twilio.calls.create({
 		twiml: twiml.toString(),
 		to: toPhoneNumber,
 		from: fromPhoneNumber,
 	})
 
-	return("Done")
+	return(call.sid)
 }
 
 app.post('/call', async (req, res) => {
@@ -174,10 +174,13 @@ app.post('/call', async (req, res) => {
 	`The name for the order is ${name}. The phone number is ${fromPhoneNumber}. ` + 
 	`You are on the phone with the pizza place. Keep your responses short and polite.`}]
 
-	await make_call(toPhoneNumber, fromPhoneNumber)
+	var callID = await make_call(toPhoneNumber, fromPhoneNumber)
+
+	console.log("Call ID: ", callID)
 
 	res.render("call", {
-		name: name
+		name: name,
+		callID: callID
 	})
 })
 
@@ -216,7 +219,8 @@ app.post('/audiostream_status', async (req, res) => {
 
 
 
-const ts = require('tailing-stream')
+const ts = require('tailing-stream');
+const { send } = require('process');
 const WaveFile = require('wavefile').WaveFile;
 
 
@@ -242,9 +246,6 @@ app.get('/eavesdrop', (req, res) => {
 });
 
 
-// Create a WebSocket server that listens on the /audio_stream path
-const wss = new WebSocket.Server({ noServer: true });
-var mediaQueue = []
 
 
 // Takes two tracks of audio and merges them into one
@@ -332,11 +333,30 @@ function updateWavFileHeader(socket){
 	});	
 }
 
+
+function sendToClients(wss, socket, message){
+	// Send the audio data to browser
+	wss.clients.forEach(function each(client) {
+		if (client !== socket && client.readyState === WebSocket.OPEN) {
+			// client.send(JSON.stringify(message.media))
+			client.send(JSON.stringify(processedMedia))
+		}
+	})
+}
+
+
+// Create a WebSocket server that listens on the /audio_stream path
+const wss = new WebSocket.Server({ noServer: true });
+var mediaQueue = []
+
+
+
 // Handle WebSocket connections
 wss.on('connection', function connection(socket) {
   console.log('WebSocket connected');
 
   socket.on('message', (msg) => {
+	// console.log(JSON.parse(msg))
 	const { event, ...message } = JSON.parse(msg);
 
   	switch (event) {
@@ -345,6 +365,9 @@ wss.on('connection', function connection(socket) {
 			break;
 		case 'start':
 			console.log('Media stream started');
+
+			// Send the streamSid to the client
+			sendToClients(wss, socket, message.start.streamSid)
 
 			// This is a mu-law header for a WAV-file compatible with twilio format (updated for two channel output)
 			let header = Buffer.from([
@@ -367,15 +390,8 @@ wss.on('connection', function connection(socket) {
 			break;
 		case 'media':
 			// // Write to raw log
-			// socket.wstreamRawLog.write(JSON.stringify(message) + "\n")
+			socket.wstreamRawLog.write(JSON.stringify(message) + "\n")
 
-			// Send the audio data to browser
-			wss.clients.forEach(function each(client) {
-				if (client !== socket && client.readyState === WebSocket.OPEN) {
-					client.send(JSON.stringify(message.media))
-				}
-			})
-						
 
 			// Add the audio data to the queue for recording
 			mediaQueue.push(message.media)
@@ -385,11 +401,15 @@ wss.on('connection', function connection(socket) {
 			}
 		
 			// Sort the buffer by timestamp
-			mediaQueue.sort((a, b) => {a.timestamp - b.timestamp});
+			mediaQueue.sort((a, b) => {
+				return parseInt(a.timestamp) - parseInt(b.timestamp);
+			});
 
-
-
+			// Send next media chunk to client
 			var processedMedia = dequeueAudio(mediaQueue)
+			var processedMediaJSON = JSON.stringify(processedMedia)
+
+			sendToClients(wss, socket, processedMediaJSON)
 
 			// Write to text log
 			socket.wstreamLog.write(JSON.stringify(processedMedia) + "\n")
