@@ -106,52 +106,81 @@ function dequeueAudio(mediaQueue){
 
 }
 
-var lastTimestamp
+function concatUint8Arrays(a, b) {
+  const c = new Uint8Array(a.length + b.length);
+  c.set(a);
+  c.set(b, a.length);
+  return c;
+}
 
 // When the user starts to stream the audio
 document.getElementById('start-stream').addEventListener('click', function() {
 
-  var mediaQueue = []
+  // twilio sends audio data as 160 byte messages containing 20ms of audio each
+  // we will buffer 20 twilio messages corresponding to 0.4 seconds of audio to improve throughput performance
+  const BUFFER_SIZE = 20 * 160;
+  // the algorithm to deal with mixing the two channels is somewhat complex
+  // here we implement an algorithm which fills in silence for channels if that channel is either
+  //   A) not currently streaming (e.g. the outbound channel when the inbound channel starts ringing it)
+  //   B) packets are dropped (this happens, and sometimes the timestamps which come back for subsequent packets are not aligned)
+  let inbuffer = new Uint8Array();
+  let outbuffer = new Uint8Array();
+  let inbound_chunks_started = false;
+  let outbound_chunks_started = false;
+  let latest_inbound_timestamp = 0;
+  let latest_outbound_timestamp = 0;
 
   const socket = new WebSocket('ws://localhost:3000/audio_stream');
   socket.binaryType = 'arraybuffer'; // Ensure that we receive binary data
 
+
   socket.addEventListener('message', function(event) {
-    var media = JSON.parse(event.data)
 
-    // Log the current time and media.timestamp
-
-    let now = new Date();
-    console.log(now.getHours() + ":" + now.getMinutes() + ":" + now.getSeconds() + ":" + now.getMilliseconds());
-    console.log(media.track, " | ", media.timestamp, " | ", media.timestamp - lastTimestamp);
-    lastTimestamp = media.timestamp
-
-    var inboundBinary = base64ToArrayBuffer(media.inboundPayload)
-    var outboundBinary = base64ToArrayBuffer(media.outboundPayload) 
-    
-    playBuffer([inboundBinary, outboundBinary])  
-
-    {{!-- 
-    // Add the audio data to the queue for recording
-    mediaQueue.push(media)
-
-    if(mediaQueue.length < 30){
-      return
+    const media = JSON.parse(event.data);
+    const chunk = base64ToArrayBuffer(media['payload']);
+    if (media['track'] == 'inbound') {
+      // fills in silence if there have been dropped packets
+      if (inbound_chunks_started) {
+        if (latest_inbound_timestamp + 20 < parseInt(media['timestamp'])) {
+          const bytes_to_fill = 8 * (parseInt(media['timestamp']) - (latest_inbound_timestamp + 20));
+          // NOTE: 0xff is silence for mulaw audio
+          // and there are 8 bytes per ms of data for our format (8 bit, 8000 Hz)
+          inbuffer = concatUint8Arrays(inbuffer, new Uint8Array(bytes_to_fill).fill(0xff));
+        }
+      } else {
+        // make it known that inbound chunks have started arriving
+        inbound_chunks_started = true;
+        latest_inbound_timestamp = parseInt(media['timestamp']);
+        // this basically sets the starting point for outbound timestamps
+        latest_outbound_timestamp = parseInt(media['timestamp']) - 20;
+      }
+      latest_inbound_timestamp = parseInt(media['timestamp']);
+      // extend the inbound audio buffer with data
+      inbuffer = concatUint8Arrays(inbuffer, new Uint8Array(chunk));
     }
-  
-    // Sort the buffer by timestamp
-    mediaQueue.sort((a, b) => {
-      return parseInt(a.timestamp) - parseInt(b.timestamp);
-    })
+    if (media['track'] == 'outbound') {
+      // make it known that outbound chunks have started arriving
+      outbound_chunked_started = true;
+      // fills in silence if there have been dropped packets
+      if (latest_outbound_timestamp + 20 < parseInt(media['timestamp'])) {
+        const bytes_to_fill = 8 * (parseInt(media['timestamp']) - (latest_outbound_timestamp + 20));
+        // NOTE: 0xff is silence for mulaw audio
+        // and there are 8 bytes per ms of data for our format (8 bit, 8000 Hz)
+        outbuffer = concatUint8Arrays(outbuffer, new Uint8Array(bytes_to_fill).fill(0xff));
+      }
+      latest_outbound_timestamp = parseInt(media['timestamp']);
+      // extend the outbound audio buffer with data
+      outbuffer = concatUint8Arrays(outbuffer, new Uint8Array(chunk));
+    }
 
-    var processedMedia = dequeueAudio(mediaQueue)
+    // check if our buffer is ready to play
+    while (inbuffer.length >= BUFFER_SIZE && outbuffer.length >= BUFFER_SIZE) {
+      playBuffer([inbuffer.slice(0, BUFFER_SIZE), outbuffer.slice(0, BUFFER_SIZE)])
 
-    var inboundBinary = base64ToArrayBuffer(processedMedia.inboundPayload)
-    var outboundBinary = base64ToArrayBuffer(processedMedia.outboundPayload)
-
-    // Play the audio
-    playBuffer([inboundBinary, outboundBinary]) 
-    --}}
+      // clearing buffers
+      inbuffer = inbuffer.slice(BUFFER_SIZE);
+      outbuffer = outbuffer.slice(BUFFER_SIZE);
+    }
 
   })
 
