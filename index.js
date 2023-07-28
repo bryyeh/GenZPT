@@ -55,6 +55,9 @@ const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN // 'your_auth_token';
 const TWILIO_TO_PHONE_NUMBER = process.env.TWILIO_TO_PHONE_NUMBER // '+15005550006';
 const TWILIO_FROM_PHONE_NUMBER = process.env.TWILIO_FROM_PHONE_NUMBER // '+15005550006';
 const SERVER_DOMAIN = process.env.SERVER_DOMAIN // 'https://e769-2a00-79e1-abc-1566-e0b3-2fdb-1f6f-366a.ngrok-free.app';
+const CREDIT_CARD_NUMBER = process.env.CREDIT_CARD_NUMBER // '4242424242424242';
+const CREDIT_CARD_EXPIRATION = process.env.CREDIT_CARD_EXPIRATION // '12/24';
+const CREDIT_CARD_SECURITY = process.env.CREDIT_CARD_SECURITY // '123';
 
 const twilio = require('twilio')(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 const VoiceResponse = require('twilio').twiml.VoiceResponse
@@ -171,12 +174,18 @@ app.post('/call', async (req, res) => {
 	const deliveryAddress = req.body.deliveryAddress
 	const pizzaSize = req.body.pizzaSize
 	const toppings = req.body.toppings
+	const creditCardNumber = CREDIT_CARD_NUMBER
+	const creditCardExpiration = CREDIT_CARD_EXPIRATION
+	const creditCardSecurity = CREDIT_CARD_SECURITY
 
 	// Create system prompt
 	transcript = [{role:"system", content:`You are an executive assistant ordering a pizza for your boss. ` +
 	`Your boss wants a ${pizzaSize} sized pizza with ${toppings} delivered to ${deliveryAddress}. `+
-	`The name for the order is ${name}. The phone number is ${fromPhoneNumber}. ` + 
-	`You are on the phone with the pizza place. Keep your responses short and polite.`}]
+	`The name for the order is ${name}. The phone number is ${fromPhoneNumber}. ` +
+	`If the pizza place asks for payment, tell them you would like to pay with credit card. ` +
+	`The credit card number is ${creditCardNumber}. The credit card expiration date is ${creditCardExpiration}. ` + 
+	`The three digit security code is ${creditCardSecurity}. ` +
+	`You are on the phone with the pizza place. Keep your responses short and polite. Don't give more information than you're asked for.`}]
 
 	var callID = await make_call(toPhoneNumber, fromPhoneNumber)
 
