@@ -1,8 +1,8 @@
 // TODO: voice should sound less robotic
-// TODO: decrease response latency
-// TODO: don't hang up when there's a long pause
-// TODO: say each digit of a phone number
-// TODO: add a way to pay
+// TODO: decrease response latency (seems fine)
+// TODO: don't hang up when there's a long pause (done)
+// TODO: say each digit of a phone number (no longeer an issue)
+// TODO: add a way to pay (done)
 
 
 
@@ -72,6 +72,7 @@ const openaiConfiguration = new Configuration({
 const openai = new OpenAIApi(openaiConfiguration);
 
 var transcript = []
+var waitForUserToRespond = true
 
 /******************************** Routes ********************************/
 
@@ -114,19 +115,20 @@ app.post('/call_simulator_message', async (req, res) => {
 
 async function whatShouldISay(whatTheySaid) {
 
-	console.log("What they said", whatTheySaid)
+	console.log("User said: ", whatTheySaid)
 
 	transcript.push({role: "user", content: whatTheySaid})
 	const chatCompletion = await openai.createChatCompletion({
 		model: "gpt-3.5-turbo",
 		messages: transcript,
+		temperature: 0,
 	})
 
 	var reply = chatCompletion.data.choices[0].message
 
 	transcript.push(reply)
-	// console.log(transcript)
 
+	console.log("Assistant said: ", reply.content)
 	return(reply.content)
 }
 
@@ -134,9 +136,10 @@ function gather_speech(response){
 	return response.gather({
 		input: 'speech',
 		action: 'https://' + SERVER_DOMAIN + '/speech_input',
-		speechTimeout: 0.5,
+		speechTimeout: 0.75,
 		enhanced: true,
-		// actionOnEmptyResult: true
+		speechModel: 'experimental_conversations',
+		actionOnEmptyResult: true
 	})	
 }
 
@@ -185,7 +188,9 @@ app.post('/call', async (req, res) => {
 	`If the pizza place asks for payment, tell them you would like to pay with credit card. ` +
 	`The credit card number is ${creditCardNumber}. The credit card expiration date is ${creditCardExpiration}. ` + 
 	`The three digit security code is ${creditCardSecurity}. ` +
-	`You are on the phone with the pizza place. Keep your responses short and polite. Don't give more information than you're asked for.`}]
+	`You are on the phone with the pizza place. Start by telling them you would like to order a pizza. `+
+	`Keep your responses short and conversational. Do not say please. `+
+    `If the user does not respond, check if they're still on the phone.`}]
 
 	var callID = await make_call(toPhoneNumber, fromPhoneNumber)
 
@@ -208,11 +213,23 @@ app.post('/hangup_call', async (req, res) => {
 
 app.post('/speech_input', async (req, res) => {
 
-	console.log("User said: ", req.body.SpeechResult)
+	var reply = ""
 
-	var reply = await whatShouldISay(req.body.SpeechResult)
-
-	console.log("Assistant said: ", reply)
+	// If user didn't respond, then wait for them to say something
+	if (req.body.SpeechResult == undefined && waitForUserToRespond == true) {
+		console.log("User did not say anything")
+		waitForUserToRespond = false
+		reply = ""
+	}
+	// If user still hasn't responded, then ChatGPT will ask if they're still there.
+	else if(req.body.SpeechResult == undefined && waitForUserToRespond == false){
+		reply = await whatShouldISay(" ")
+		waitForUserToRespond = true
+	}
+	else {
+		reply = await whatShouldISay(req.body.SpeechResult)
+		waitForUserToRespond = true
+	}
 
 	var response = new VoiceResponse()	
 	response.say(reply)
