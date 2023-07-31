@@ -119,7 +119,8 @@ async function whatShouldISay(whatTheySaid) {
 
 	transcript.push({role: "user", content: whatTheySaid})
 	const chatCompletion = await openai.createChatCompletion({
-		model: "gpt-3.5-turbo",
+		// model: "gpt-3.5-turbo",
+		model: "gpt-4",
 		messages: transcript,
 		temperature: 0,
 	})
@@ -189,7 +190,10 @@ app.post('/call', async (req, res) => {
 	`The credit card number is ${creditCardNumber}. The credit card expiration date is ${creditCardExpiration}. ` + 
 	`The three digit security code is ${creditCardSecurity}. ` +
 	`You are on the phone with the pizza place. Start by telling them you would like to order a pizza. `+
-	`Keep your responses short and conversational. Do not say please. `+
+	`Your responses should always be one sentance maximum in length`+
+	`Be very informal in tone.`+
+	`Do not say please. `+
+	`Don't give information without being asked. Don't give too much information at once. `+
     `If the user does not respond, check if they're still on the phone.`}]
 
 	var callID = await make_call(toPhoneNumber, fromPhoneNumber)
