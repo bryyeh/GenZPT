@@ -26,7 +26,10 @@
 <div class="call-container">
   <p class="call-message">Ordering a pizza for <span class="call-name">{{name}}</span>.</p>
   <audio id="audio-element"></audio>
-  <button id="start-stream" class="btn btn-primary">Start Audio Stream</button>
+  <div class="d-flex">
+    <button id="start-stream" class="btn btn-primary">Listen</button>
+    <button id="end-call" class="btn btn-danger">End Call</button>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/wavefile"></script>
@@ -35,18 +38,6 @@
 
 // const audio = new Audio();
 // var audio = document.querySelector("#audio-element");
-
-
-function base64ToArrayBuffer(base64) {
-  var binaryString = window.atob(base64);
-  var binaryLen = binaryString.length;
-  var bytes = new Uint8Array(binaryLen);
-  for (var i = 0; i < binaryLen; i++) {
-      var ascii = binaryString.charCodeAt(i);
-      bytes[i] = ascii;
-  }
-  return bytes;
-}
 
 function playBuffer(bufferArray) {
 
@@ -150,6 +141,10 @@ document.getElementById('start-stream').addEventListener('click', function() {
     var processedMedia = dequeueAudio(mediaQueue)
 
     // console.log(processedMedia)
+
+    console.log("inbound: " + processedMedia.inboundPayload)
+    console.log("outbound: " + processedMedia.inboundPayload)
+    console.log("")
 
     var inboundBinary = base64ToArrayBuffer(processedMedia.inboundPayload)
     var outboundBinary = base64ToArrayBuffer(processedMedia.outboundPayload)

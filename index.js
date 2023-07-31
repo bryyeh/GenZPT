@@ -198,6 +198,13 @@ app.post('/call', async (req, res) => {
 	})
 })
 
+app.post('/hangup_call', async (req, res) => {
+	console.log("Hanging up call: ", req.body.callID)
+	const call = await twilio.calls(callSid).update({status: 'completed'})
+	console.log(`Call ${callSid} has been ended.`)
+	res.send(200)
+})
+
 
 app.post('/speech_input', async (req, res) => {
 

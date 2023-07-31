@@ -1,6 +1,10 @@
 # Logs
 logs
 *.log
+call_recording.txt
+call_recording_raw.txt
+call_recording.wav
+
 
 # Runtime data
 pids
