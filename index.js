@@ -72,7 +72,7 @@ const openaiConfiguration = new Configuration({
 const openai = new OpenAIApi(openaiConfiguration);
 
 var transcript = []
-var userDidNotResponsedOnce = false
+var waitForUserToRespond = true
 
 /******************************** Routes ********************************/
 
@@ -209,19 +209,19 @@ app.post('/speech_input', async (req, res) => {
 	var reply = ""
 
 	// If user didn't respond, then wait for them to say something
-	if (req.body.SpeechResult == undefined && userDidNotResponsedOnce == false) {
+	if (req.body.SpeechResult == undefined && waitForUserToRespond == true) {
 		console.log("User did not say anything")
-		userDidNotResponsedOnce = true
+		waitForUserToRespond = false
 		reply = ""
 	}
 	// If user still hasn't responded, then ChatGPT will ask if they're still there.
-	else if(req.body.SpeechResult == undefined && userDidNotResponsedOnce == true){
-		userDidNotResponsedOnce = false
+	else if(req.body.SpeechResult == undefined && waitForUserToRespond == false){
 		reply = await whatShouldISay(" ")
+		waitForUserToRespond = true
 	}
 	else {
-		userDidNotResponsedOnce = false
 		reply = await whatShouldISay(req.body.SpeechResult)
+		waitForUserToRespond = true
 	}
 
 	var response = new VoiceResponse()	
