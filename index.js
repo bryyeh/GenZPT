@@ -1,9 +1,5 @@
 // TODO: voice should sound less robotic
 // TODO: decrease response latency (seems fine)
-// TODO: don't hang up when there's a long pause (done)
-// TODO: say each digit of a phone number (no longeer an issue)
-// TODO: add a way to pay (done)
-
 
 
 const path = require('path');
@@ -208,10 +204,11 @@ app.post('/call', async (req, res) => {
 })
 
 app.post('/hangup_call', async (req, res) => {
-	console.log("Hanging up call: ", req.body.callID)
-	const call = await twilio.calls(callSid).update({status: 'completed'})
-	console.log(`Call ${callSid} has been ended.`)
-	res.send(200)
+
+	const callID = req.body.callID
+	const call = await twilio.calls(callID).update({status: 'completed'})
+	console.log(`Call ${call.sid} has been ended.`)
+	res.send("done")
 })
 
 

@@ -114,11 +114,36 @@ function base64ToArrayBuffer(base64) {
   return bytes;
 }
 
-const socket = new WebSocket('ws://localhost:3000/audio_stream');
-socket.binaryType = 'arraybuffer'; // Ensure that we receive binary data
-var mediaQueue = []
 
+
+// Hangup the call when the "Hangup" button is clicked
+document.getElementById('end-call').addEventListener('click', function() {
+  const callID = "{{ callID }}"
+
+  console.log("Ending Call: " + callID)
+
+  fetch('/hangup_call', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ callID: callID }),
+  })
+  .catch((error) => {
+    console.error('Error:', error);
+  });
+});
+
+
+
+// Listen to the call
 document.getElementById('start-stream').addEventListener('click', function() {
+
+
+  const socket = new WebSocket('ws://localhost:3000/audio_stream');
+  socket.binaryType = 'arraybuffer'; // Ensure that we receive binary data
+  var mediaQueue = []
+
   socket.addEventListener('message', function(event) {  
 
     const media = JSON.parse(event.data);
@@ -140,18 +165,20 @@ document.getElementById('start-stream').addEventListener('click', function() {
     // Send next media chunk to client
     var processedMedia = dequeueAudio(mediaQueue)
 
-    // console.log(processedMedia)
-
-    console.log("inbound: " + processedMedia.inboundPayload)
-    console.log("outbound: " + processedMedia.inboundPayload)
-    console.log("")
-
     var inboundBinary = base64ToArrayBuffer(processedMedia.inboundPayload)
     var outboundBinary = base64ToArrayBuffer(processedMedia.outboundPayload)
 
     playBuffer([inboundBinary, outboundBinary])
   })
 })
+
+
+
+
+
+
+
+
 
 {{!-- 
 // When the user starts to stream the audio
